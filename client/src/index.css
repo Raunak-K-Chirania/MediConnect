@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Outfit", system-ui, sans-serif;
+  --font-display: "Outfit", system-ui, sans-serif;
+  
+  --color-medical-50: #eef2ff;
+  --color-medical-100: #e0e7ff;
+  --color-medical-500: #6366f1;
+  --color-medical-600: #4f46e5;
+  --color-medical-700: #4338ca;
+  --color-teal-brand: #06b6d4;
+  --color-dark-surface: #111827;
+  --color-dark-border: #1f2937;
+}
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+  }
+  .bg-radial-glow {
+    background: radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+  }
+}
