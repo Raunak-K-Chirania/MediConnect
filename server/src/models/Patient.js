@@ -73,6 +73,5 @@ const patientSchema = new mongoose.Schema(
 
 // Indexes
 patientSchema.index({ phone: 1 });
-patientSchema.index({ user: 1 });
 
 module.exports = mongoose.model("Patient", patientSchema);
