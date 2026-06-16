@@ -16,6 +16,8 @@ connectDB();
 // Define Routes
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/protected", require("./routes/protected"));
+app.use("/api/patients", require("./routes/patients"));
+app.use("/api/records", require("./routes/records"));
 
 app.get("/", (req, res) => {
   res.send("API Running");

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { encrypt, decrypt } = require("../utils/encryption");
 
 const appointmentSchema = new mongoose.Schema(
     {
@@ -37,6 +38,38 @@ const appointmentSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+// Encryption & Decryption Middleware Hooks
+appointmentSchema.pre("save", function () {
+  if (this.isModified("reason") && this.reason) {
+    this.reason = encrypt(this.reason);
+  }
+});
+
+const decryptAppointment = (doc) => {
+  if (!doc) return;
+  if (doc.reason) doc.reason = decrypt(doc.reason);
+};
+
+appointmentSchema.post("init", function (doc) {
+  decryptAppointment(doc);
+});
+
+appointmentSchema.post("save", function (doc) {
+  decryptAppointment(doc);
+});
+
+appointmentSchema.post("find", function (docs) {
+  if (Array.isArray(docs)) {
+    docs.forEach(decryptAppointment);
+  }
+});
+
+appointmentSchema.post("findOne", function (doc) {
+  if (doc) {
+    decryptAppointment(doc);
+  }
+});
 
 module.exports = mongoose.model(
     "Appointment",
