@@ -79,4 +79,4 @@ medicalRecordSchema.post("findOne", function (doc) {
 module.exports = mongoose.model(
     "MedicalRecord",
     medicalRecordSchema
-);
+);
