@@ -101,6 +101,9 @@ router.post("/register", async (req, res) => {
     // Generate token
     const token = generateToken(user);
 
+    // Set audit user ID for logging middleware
+    req.auditUserId = user._id;
+
     res.status(201).json({
       message: "User registered successfully",
       token,
@@ -142,6 +145,9 @@ router.post("/login", async (req, res) => {
 
     // Generate token
     const token = generateToken(user);
+
+    // Set audit user ID for logging middleware
+    req.auditUserId = user._id;
 
     res.json({
       message: "Login successful",
