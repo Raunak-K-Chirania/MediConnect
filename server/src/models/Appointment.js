@@ -74,4 +74,4 @@ appointmentSchema.post("findOne", function (doc) {
 module.exports = mongoose.model(
     "Appointment",
     appointmentSchema
-);
+);

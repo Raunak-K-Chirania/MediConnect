@@ -127,4 +127,4 @@ patientSchema.post("findOne", function (doc) {
 // Indexes
 patientSchema.index({ phone: 1 });
 
-module.exports = mongoose.model("Patient", patientSchema);
+module.exports = mongoose.model("Patient", patientSchema);
