@@ -156,11 +156,15 @@ const runTest = async () => {
     // 6. Test MedicalRecord and Prescription
     console.log("\n6. Creating MedicalRecord and Prescription...");
     const medicalRecord = new MedicalRecord({
-      patient: patientProfile._id,
-      doctor: doctorProfile._id,
+      patientId: patientProfile._id,
+      doctorId: doctorProfile._id,
       diagnosis: testData.diagnosis,
       symptoms: testData.symptoms,
+      treatmentPlan: "Encrypted treatment plan",
+      medications: ["Penicillin"],
+      allergies: ["Pollen"],
       notes: testData.notes,
+      visitDate: new Date(),
     });
     await medicalRecord.save();
 
@@ -187,6 +191,9 @@ const runTest = async () => {
 
     checkEncrypted("diagnosis", rawRecord.diagnosis, testData.diagnosis);
     checkEncrypted("symptoms", rawRecord.symptoms, testData.symptoms);
+    checkEncrypted("treatmentPlan", rawRecord.treatmentPlan, "Encrypted treatment plan");
+    checkEncrypted("medications", rawRecord.medications, ["Penicillin"]);
+    checkEncrypted("allergies", rawRecord.allergies, ["Pollen"]);
     checkEncrypted("notes", rawRecord.notes, testData.notes);
     console.log("✔ SUCCESS: MedicalRecord fields are encrypted in DB.");
 
@@ -194,6 +201,9 @@ const runTest = async () => {
     const mongooseRecord = await MedicalRecord.findById(medicalRecord._id);
     checkDecrypted("diagnosis", mongooseRecord.diagnosis, testData.diagnosis);
     checkDecrypted("symptoms", mongooseRecord.symptoms, testData.symptoms);
+    checkDecrypted("treatmentPlan", mongooseRecord.treatmentPlan, "Encrypted treatment plan");
+    checkDecrypted("medications", mongooseRecord.medications, ["Penicillin"]);
+    checkDecrypted("allergies", mongooseRecord.allergies, ["Pollen"]);
     checkDecrypted("notes", mongooseRecord.notes, testData.notes);
     console.log("✔ SUCCESS: MedicalRecord decrypted correctly.");
 

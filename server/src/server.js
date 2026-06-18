@@ -12,6 +12,9 @@ app.use(express.json());
 app.use(cors());
 app.use(auditLogger);
 
+const { securityHardening } = require("./middleware/security");
+app.use(securityHardening);
+
 // Connect Database
 connectDB();
 
@@ -20,6 +23,7 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/protected", require("./routes/protected"));
 app.use("/api/patients", require("./routes/patients"));
 app.use("/api/records", require("./routes/records"));
+app.use("/medical-records", require("./routes/records"));
 
 app.get("/", (req, res) => {
   res.send("API Running");
