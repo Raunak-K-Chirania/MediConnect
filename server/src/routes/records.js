@@ -4,19 +4,17 @@ const MedicalRecord = require("../models/Medicalrecord");
 const Prescription = require("../models/Prescription");
 const Patient = require("../models/Patient");
 const Doctor = require("../models/Doctor");
+const Appointment = require("../models/Appointment");
 const auth = require("../middleware/auth");
 const authorize = require("../middleware/role");
+const { validateBody, createMedicalRecordSchema } = require("../middleware/validation");
 
-// @route   POST /api/records
+// @route   POST /medical-records
 // @desc    Create a medical record and optional prescription (encrypted)
 // @access  Private (Doctor only)
-router.post("/", auth, authorize("Doctor"), async (req, res) => {
+router.post("/", auth, authorize("Doctor"), validateBody(createMedicalRecordSchema), async (req, res) => {
   try {
-    const { patientId, appointmentId, diagnosis, symptoms, notes, prescription } = req.body;
-
-    if (!patientId || !diagnosis) {
-      return res.status(400).json({ error: "Patient ID and diagnosis are required" });
-    }
+    const { patientId, diagnosis, symptoms, treatmentPlan, medications, allergies, notes, visitDate, prescription } = req.body;
 
     // Verify patient exists
     const patientExists = await Patient.findById(patientId);
@@ -30,19 +28,33 @@ router.post("/", auth, authorize("Doctor"), async (req, res) => {
       return res.status(403).json({ error: "Doctor profile not found. Access denied." });
     }
 
-    // Create medical record
-    const medicalRecord = new MedicalRecord({
+    // Enforce role-based access / assignment: Doctors can access records only for patients assigned to them (via Appointment)
+    const isAssigned = await Appointment.findOne({
       patient: patientId,
       doctor: doctor._id,
-      appointment: appointmentId,
+    });
+    if (!isAssigned) {
+      return res.status(403).json({
+        error: "Forbidden: You cannot create a record for a patient who is not assigned to you.",
+      });
+    }
+
+    // Create medical record
+    const medicalRecord = new MedicalRecord({
+      patientId,
+      doctorId: doctor._id,
       diagnosis,
-      symptoms: symptoms || [],
+      symptoms,
+      treatmentPlan,
+      medications,
+      allergies,
       notes,
+      visitDate,
     });
 
     await medicalRecord.save();
 
-    // If prescription is provided, create it
+    // If prescription is provided, create it (kept for backwards-compatibility)
     let savedPrescription = null;
     if (prescription && prescription.medicines && prescription.medicines.length > 0) {
       savedPrescription = new Prescription({
@@ -64,31 +76,46 @@ router.post("/", auth, authorize("Doctor"), async (req, res) => {
   }
 });
 
-// @route   GET /api/records/patient/:patientId
+// @route   GET /medical-records/patient/:patientId
 // @desc    Get all medical records for a specific patient
 // @access  Private (Doctor, Admin, or Patient owner)
 router.get("/patient/:patientId", auth, async (req, res) => {
   try {
     const { patientId } = req.params;
 
-    // Check authorization: Owner or staff (Doctor/Admin)
+    // Authorization & Access Control checks
     if (req.user.role === "Patient") {
       // Find patient profile for current user
-      const patient = await Patient.findOne({ user: req.user.id });
-      if (!patient || patient._id.toString() !== patientId) {
+      const patientProfile = await Patient.findOne({ user: req.user.id });
+      if (!patientProfile || patientProfile._id.toString() !== patientId) {
         return res.status(403).json({ error: "Forbidden: You can only access your own medical records." });
       }
-    } else if (!["Doctor", "Admin"].includes(req.user.role)) {
+    } else if (req.user.role === "Doctor") {
+      // Find Doctor profile linked to the logged in user
+      const doctorProfile = await Doctor.findOne({ user: req.user.id });
+      if (!doctorProfile) {
+        return res.status(403).json({ error: "Doctor profile not found. Access denied." });
+      }
+
+      // Check if patient is assigned to this doctor
+      const isAssigned = await Appointment.findOne({
+        patient: patientId,
+        doctor: doctorProfile._id,
+      });
+      if (!isAssigned) {
+        return res.status(403).json({ error: "Forbidden: You are not assigned to this patient." });
+      }
+    } else if (req.user.role !== "Admin") {
       return res.status(403).json({ error: "Forbidden: Access denied." });
     }
 
-    // Find records and populate doctor user info
-    const records = await MedicalRecord.find({ patient: patientId })
+    // Find records, sort by visitDate descending, and populate doctor user info
+    const records = await MedicalRecord.find({ patientId })
       .populate({
-        path: "doctor",
+        path: "doctorId",
         populate: { path: "user", select: "name" },
       })
-      .sort({ createdAt: -1 });
+      .sort({ visitDate: -1 });
 
     // For each record, find prescription if any
     const recordsWithPrescriptions = await Promise.all(
@@ -107,18 +134,18 @@ router.get("/patient/:patientId", auth, async (req, res) => {
   }
 });
 
-// @route   GET /api/records/:id
+// @route   GET /medical-records/:id
 // @desc    Get specific medical record details with prescription
 // @access  Private (Doctor, Admin, or Patient owner)
 router.get("/:id", auth, async (req, res) => {
   try {
     const record = await MedicalRecord.findById(req.params.id)
       .populate({
-        path: "patient",
+        path: "patientId",
         populate: { path: "user", select: "name email" },
       })
       .populate({
-        path: "doctor",
+        path: "doctorId",
         populate: { path: "user", select: "name" },
       });
 
@@ -126,16 +153,33 @@ router.get("/:id", auth, async (req, res) => {
       return res.status(404).json({ error: "Medical record not found" });
     }
 
-    // Authorization: Owner or staff
-    const isOwner = record.patient && record.patient.user && record.patient.user._id.toString() === req.user.id.toString();
-    const isStaff = ["Doctor", "Admin"].includes(req.user.role);
+    // Authorization & Access Control checks
+    if (req.user.role === "Patient") {
+      const isOwner = record.patientId && record.patientId.user && record.patientId.user._id.toString() === req.user.id.toString();
+      if (!isOwner) {
+        return res.status(403).json({ error: "Forbidden: You can only access your own medical records." });
+      }
+    } else if (req.user.role === "Doctor") {
+      // Find Doctor profile linked to the logged in user
+      const doctorProfile = await Doctor.findOne({ user: req.user.id });
+      if (!doctorProfile) {
+        return res.status(403).json({ error: "Doctor profile not found. Access denied." });
+      }
 
-    if (!isOwner && !isStaff) {
+      // Check if patient of this medical record is assigned to this doctor
+      const isAssigned = await Appointment.findOne({
+        patient: record.patientId._id,
+        doctor: doctorProfile._id,
+      });
+      if (!isAssigned) {
+        return res.status(403).json({ error: "Forbidden: You are not assigned to this patient." });
+      }
+    } else if (req.user.role !== "Admin") {
       return res.status(403).json({ error: "Forbidden: Access denied." });
     }
 
     const prescription = await Prescription.findOne({ medicalRecord: record._id });
-    
+
     res.json({
       record,
       prescription,

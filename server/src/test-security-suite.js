@@ -13,6 +13,7 @@ const Doctor = require("./models/Doctor");
 const MedicalRecord = require("./models/Medicalrecord");
 const Prescription = require("./models/Prescription");
 const AuditLog = require("./models/AuditLog");
+const Appointment = require("./models/Appointment");
 
 const PORT = 5999;
 const BASE_URL = `http://localhost:${PORT}`;
@@ -91,6 +92,9 @@ const runSecuritySuite = async () => {
     const existingUsers = await User.find({ email: { $in: testEmails } });
     const userIds = existingUsers.map((u) => u._id);
     
+    const existingPatients = await Patient.find({ user: { $in: userIds } });
+    const patientIds = existingPatients.map((p) => p._id);
+    await Appointment.deleteMany({ patient: { $in: patientIds } });
     await Patient.deleteMany({ user: { $in: userIds } });
     await Doctor.deleteMany({ user: { $in: userIds } });
     await User.deleteMany({ _id: { $in: userIds } });
@@ -197,6 +201,18 @@ const runSecuritySuite = async () => {
     if (!patientRegLog) throw new Error("Audit Log: Entry for Patient Registration not found");
     console.log(`[CHECK] Patient Registration Audit Log: Action = "${patientRegLog.performedAction}", User ID = ${patientRegLog.userId}`);
 
+    // Create mock appointment to assign patient to doctor
+    const doctorProfile = await Doctor.findOne({ user: doctorUserId });
+    const patientProfileForAppt = await Patient.findOne({ user: patientUserId });
+    const mockAppt = new Appointment({
+      patient: patientProfileForAppt._id,
+      doctor: doctorProfile._id,
+      appointmentDate: new Date(),
+      status: "Scheduled",
+    });
+    await mockAppt.save();
+    console.log("✔ Mock appointment created successfully (enabling doctor-patient assignment).");
+
     // --- TEST AREA 3: DATABASE ENCRYPTION VS API DECRYPTION (PHI) ---
     console.log("\n--- [Test Area 3] Verification of Data Encryption (PHI) ---");
 
@@ -257,7 +273,11 @@ const runSecuritySuite = async () => {
       patientId: patientProfileId,
       diagnosis: "Secure Code Deficiency",
       symptoms: ["unlogged requests", "plaintext storage"],
+      treatmentPlan: "Resolve code defects and add logging and validation.",
+      medications: ["AuditLog Forte"],
+      allergies: ["Plaintext", "NoSQL Operators"],
       notes: "Prescribing immediately: Audit logs & AES encryption.",
+      visitDate: new Date().toISOString(),
       prescription: {
         medicines: [
           {
@@ -288,15 +308,21 @@ const runSecuritySuite = async () => {
     const rawPrescriptionDoc = await mongoose.connection.db.collection("prescriptions").findOne({ _id: new mongoose.Types.ObjectId(createdPrescriptionId) });
 
     const isDiagnosisEncrypted = rawRecordDoc.diagnosis.split(":").length === 3;
+    const isTreatmentPlanEncrypted = rawRecordDoc.treatmentPlan.split(":").length === 3;
+    const isMedicationsEncrypted = rawRecordDoc.medications[0].split(":").length === 3;
+    const isAllergiesEncrypted = rawRecordDoc.allergies[0].split(":").length === 3;
     const isPrescriptionInstEncrypted = rawPrescriptionDoc.instructions.split(":").length === 3;
     const isMedNameEncrypted = rawPrescriptionDoc.medicines[0].name.split(":").length === 3;
 
     console.log(`[CHECK] Raw Stored Medical Record & Prescription PHI (DB):
     - Raw Diagnosis: "${rawRecordDoc.diagnosis}" | Encrypted? ${isDiagnosisEncrypted}
+    - Raw Treatment Plan: "${rawRecordDoc.treatmentPlan}" | Encrypted? ${isTreatmentPlanEncrypted}
+    - Raw Medications: "${rawRecordDoc.medications[0]}" | Encrypted? ${isMedicationsEncrypted}
+    - Raw Allergies: "${rawRecordDoc.allergies[0]}" | Encrypted? ${isAllergiesEncrypted}
     - Raw Instructions: "${rawPrescriptionDoc.instructions}" | Encrypted? ${isPrescriptionInstEncrypted}
     - Raw Medicine Name: "${rawPrescriptionDoc.medicines[0].name}" | Encrypted? ${isMedNameEncrypted}`);
 
-    if (!isDiagnosisEncrypted || !isPrescriptionInstEncrypted || !isMedNameEncrypted) {
+    if (!isDiagnosisEncrypted || !isTreatmentPlanEncrypted || !isMedicationsEncrypted || !isAllergiesEncrypted || !isPrescriptionInstEncrypted || !isMedNameEncrypted) {
       throw new Error("PHI Encryption: Medical record or prescription fields were not encrypted in DB!");
     }
 
@@ -308,15 +334,59 @@ const runSecuritySuite = async () => {
     const retrievedRecord = getRecordsRes.body.records[0];
     console.log(`[CHECK] Retrieved Medical Record (API Response):
     - Decrypted Diagnosis: "${retrievedRecord.diagnosis}" (Expected: "${recordPayload.diagnosis}")
+    - Decrypted Treatment Plan: "${retrievedRecord.treatmentPlan}" (Expected: "${recordPayload.treatmentPlan}")
     - Decrypted Medicine Name: "${retrievedRecord.prescription.medicines[0].name}" (Expected: "${recordPayload.prescription.medicines[0].name}")`);
 
-    if (retrievedRecord.diagnosis !== recordPayload.diagnosis || retrievedRecord.prescription.medicines[0].name !== recordPayload.prescription.medicines[0].name) {
+    if (retrievedRecord.diagnosis !== recordPayload.diagnosis || retrievedRecord.treatmentPlan !== recordPayload.treatmentPlan || retrievedRecord.prescription.medicines[0].name !== recordPayload.prescription.medicines[0].name) {
       throw new Error("PHI Decryption: API returned incorrect/undecrypted medical record or prescription values");
     }
+
+    // --- TEST AREA 5: SECURITY HARDENING (NOSQL INJECTION & XSS) ---
+    console.log("\n--- [Test Area 5] Verification of Security Hardening ---");
+
+    // Test 5.1: Block NoSQL Injection
+    const nosqlPayload = {
+      patientId: patientProfileId,
+      diagnosis: { "$ne": "something" },
+      treatmentPlan: "Plan",
+      visitDate: new Date().toISOString()
+    };
+    const nosqlRes = await apiRequest("POST", "/api/records", { Authorization: `Bearer ${doctorToken}` }, nosqlPayload);
+    console.log(`[CHECK] NoSQL Injection blocked: Status = ${nosqlRes.statusCode} (Expected: 400)`);
+    if (nosqlRes.statusCode !== 400) {
+      throw new Error("Security Hardening: NoSQL injection payload was not blocked!");
+    }
+
+    // Test 5.2: Sanitize XSS payload (HTML Escaping)
+    const xssPayload = {
+      patientId: patientProfileId,
+      diagnosis: "<script>alert('xss')</script>",
+      treatmentPlan: "Plan <b>bold</b>",
+      visitDate: new Date().toISOString()
+    };
+    const xssRes = await apiRequest("POST", "/api/records", { Authorization: `Bearer ${doctorToken}` }, xssPayload);
+    console.log(`[CHECK] Create Record with XSS: Status = ${xssRes.statusCode} (Expected: 201)`);
+    if (xssRes.statusCode !== 201) {
+      throw new Error("XSS payload record creation failed");
+    }
+    
+    const xssRecord = xssRes.body.medicalRecord;
+    console.log(`[CHECK] XSS Sanitization:
+    - Escaped Diagnosis: "${xssRecord.diagnosis}" (Expected: "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;&#x2F;script&gt;")
+    - Escaped Treatment Plan: "${xssRecord.treatmentPlan}" (Expected: "Plan &lt;b&gt;bold&lt;&#x2F;b&gt;")`);
+
+    if (xssRecord.diagnosis !== "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;&#x2F;script&gt;" || xssRecord.treatmentPlan !== "Plan &lt;b&gt;bold&lt;&#x2F;b&gt;") {
+      throw new Error("Security Hardening: HTML tags were not escaped properly!");
+    }
+    
+    // Clean up XSS record
+    await MedicalRecord.findByIdAndDelete(xssRecord._id);
+    console.log("✔ XSS and NoSQL injection security controls verified.");
 
     // Clean up test data at the end of successful run
     await Prescription.findByIdAndDelete(createdPrescriptionId);
     await MedicalRecord.findByIdAndDelete(createdRecordId);
+    await Appointment.deleteMany({ patient: patientProfileId });
     await Patient.deleteMany({ user: { $in: userIds } });
     await Doctor.deleteMany({ user: { $in: userIds } });
     await User.deleteMany({ _id: { $in: userIds } });
