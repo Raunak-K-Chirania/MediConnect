@@ -56,9 +56,11 @@ const validateBody = (schema) => (req, res, next) => {
     next();
   } catch (error) {
     if (error instanceof z.ZodError) {
+      const issues = error.errors || error.issues || [];
       return res.status(400).json({
-        error: "Validation error",
-        details: error.errors.map((err) => ({
+        success: false,
+        message: "Validation error: " + issues.map(err => `${err.path.join(".")}: ${err.message}`).join("; "),
+        errors: issues.map((err) => ({
           field: err.path.join("."),
           message: err.message,
         })),
@@ -68,8 +70,11 @@ const validateBody = (schema) => (req, res, next) => {
   }
 };
 
+const updateMedicalRecordSchema = createMedicalRecordSchema.partial();
+
 module.exports = {
   objectIdSchema,
   createMedicalRecordSchema,
+  updateMedicalRecordSchema,
   validateBody,
 };

@@ -24,6 +24,22 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    action: {
+      type: String,
+      default: null,
+    },
+    role: {
+      type: String,
+      default: null,
+    },
+    resourceType: {
+      type: String,
+      default: null,
+    },
+    resourceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
     method: {
       type: String,
       required: true,

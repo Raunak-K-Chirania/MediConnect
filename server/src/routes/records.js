@@ -7,7 +7,8 @@ const Doctor = require("../models/Doctor");
 const Appointment = require("../models/Appointment");
 const auth = require("../middleware/auth");
 const authorize = require("../middleware/role");
-const { validateBody, createMedicalRecordSchema } = require("../middleware/validation");
+const { validateBody, createMedicalRecordSchema, updateMedicalRecordSchema } = require("../middleware/validation");
+const medicalRecordService = require("../services/medical-record.service");
 
 // @route   POST /medical-records
 // @desc    Create a medical record and optional prescription (encrypted)
@@ -110,7 +111,7 @@ router.get("/patient/:patientId", auth, async (req, res) => {
     }
 
     // Find records, sort by visitDate descending, and populate doctor user info
-    const records = await MedicalRecord.find({ patientId })
+    const records = await MedicalRecord.find({ patientId, isDeleted: { $ne: true } })
       .populate({
         path: "doctorId",
         populate: { path: "user", select: "name" },
@@ -139,7 +140,7 @@ router.get("/patient/:patientId", auth, async (req, res) => {
 // @access  Private (Doctor, Admin, or Patient owner)
 router.get("/:id", auth, async (req, res) => {
   try {
-    const record = await MedicalRecord.findById(req.params.id)
+    const record = await MedicalRecord.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
       .populate({
         path: "patientId",
         populate: { path: "user", select: "name email" },
@@ -187,6 +188,51 @@ router.get("/:id", auth, async (req, res) => {
   } catch (error) {
     console.error("Fetch record error:", error.message);
     res.status(500).json({ error: "Server error fetching record details" });
+  }
+});
+
+// @route   PUT /medical-records/:id
+// @desc    Update a medical record
+// @access  Private (Doctor or Admin)
+router.put("/:id", auth, authorize(["Doctor", "Admin"]), validateBody(updateMedicalRecordSchema), async (req, res, next) => {
+  try {
+    const record = await medicalRecordService.updateMedicalRecord(req.params.id, req.body, req.user);
+
+    req.auditLogData = {
+      action: "MEDICAL_RECORD_UPDATED",
+      resourceType: "MedicalRecord",
+      resourceId: record._id,
+    };
+
+    res.json({
+      success: true,
+      message: "Medical record updated successfully",
+      data: record,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   DELETE /medical-records/:id
+// @desc    Soft delete a medical record
+// @access  Private (Doctor or Admin)
+router.delete("/:id", auth, authorize(["Doctor", "Admin"]), async (req, res, next) => {
+  try {
+    const record = await medicalRecordService.deleteMedicalRecord(req.params.id, req.user);
+
+    req.auditLogData = {
+      action: "MEDICAL_RECORD_DELETED",
+      resourceType: "MedicalRecord",
+      resourceId: record._id,
+    };
+
+    res.json({
+      success: true,
+      message: "Medical record deleted successfully",
+    });
+  } catch (error) {
+    next(error);
   }
 });
 
