@@ -49,6 +49,13 @@ const medicalRecordSchema = new mongoose.Schema(
             type: Date,
             required: [true, "Visit date is required"],
         },
+        isDeleted: {
+            type: Boolean,
+            default: false,
+        },
+        deletedAt: {
+            type: Date,
+        },
     },
     {
         timestamps: true,

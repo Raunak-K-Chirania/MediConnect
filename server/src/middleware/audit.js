@@ -63,10 +63,17 @@ const auditLogger = (req, res, next) => {
       // Try to get user ID from req.user (populated by auth middleware)
       // or req.auditUserId (explicitly populated in login/register controllers)
       const userId = req.user ? req.user._id : (req.auditUserId || null);
+      const role = req.user ? req.user.role : null;
+      
+      const logData = req.auditLogData || {};
 
       const auditEntry = new AuditLog({
         timestamp: startTime,
         userId,
+        role,
+        action: logData.action || null,
+        resourceType: logData.resourceType || null,
+        resourceId: logData.resourceId || null,
         ipAddress,
         apiEndpoint,
         performedAction,
