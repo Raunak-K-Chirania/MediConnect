@@ -262,4 +262,49 @@ router.delete("/:id", auth, authorize(["Doctor", "Admin"]), async (req, res, nex
   }
 });
 
+// @route   PUT /medical-records/:id
+// @desc    Update a medical record
+// @access  Private (Doctor or Admin)
+router.put("/:id", auth, authorize(["Doctor", "Admin"]), validateBody(updateMedicalRecordSchema), async (req, res, next) => {
+  try {
+    const record = await medicalRecordService.updateMedicalRecord(req.params.id, req.body, req.user);
+
+    req.auditLogData = {
+      action: "MEDICAL_RECORD_UPDATED",
+      resourceType: "MedicalRecord",
+      resourceId: record._id,
+    };
+
+    res.json({
+      success: true,
+      message: "Medical record updated successfully",
+      data: record,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   DELETE /medical-records/:id
+// @desc    Soft delete a medical record
+// @access  Private (Doctor or Admin)
+router.delete("/:id", auth, authorize(["Doctor", "Admin"]), async (req, res, next) => {
+  try {
+    const record = await medicalRecordService.deleteMedicalRecord(req.params.id, req.user);
+
+    req.auditLogData = {
+      action: "MEDICAL_RECORD_DELETED",
+      resourceType: "MedicalRecord",
+      resourceId: record._id,
+    };
+
+    res.json({
+      success: true,
+      message: "Medical record deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
