@@ -55,17 +55,6 @@ const validateBody = (schema) => (req, res, next) => {
     req.body = schema.parse(req.body);
     next();
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const issues = error.errors || error.issues || [];
-      return res.status(400).json({
-        success: false,
-        message: "Validation error: " + issues.map(err => `${err.path.join(".")}: ${err.message}`).join("; "),
-        errors: issues.map((err) => ({
-          field: err.path.join("."),
-          message: err.message,
-        })),
-      });
-    }
     next(error);
   }
 };

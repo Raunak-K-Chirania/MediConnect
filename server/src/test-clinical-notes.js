@@ -93,6 +93,7 @@ const runTests = async () => {
       "test_doc_alice@example.com",
       "test_doc_bob@example.com",
       "test_patient_john@example.com",
+      "test_patient_charlie@example.com",
       "test_admin@example.com"
     ];
     const existingUsers = await User.find({ email: { $in: testEmails } });
@@ -416,6 +417,163 @@ const runTests = async () => {
 
     console.log("✔ Clinical Note RBAC Access Controls validated successfully.");
 
+    // Test 2.6: GET Patient Clinical Notes (GET /clinical-notes/patient/:patientId)
+    console.log("\nRunning Test 2.6: GET /clinical-notes/patient/:patientId...");
+
+    // Register Charlie
+    const patientCharlieRes = await apiRequest("POST", "/api/auth/register", {}, {
+      name: "Charlie Brown",
+      email: "test_patient_charlie@example.com",
+      password: "password123",
+      role: "Patient",
+      phone: "+15555555556",
+      address: "789 Pine Street",
+      dateOfBirth: "1995-05-05",
+      emergencyContact: "+19999999998",
+      allergies: [],
+      medicalHistory: [],
+    });
+    if (patientCharlieRes.statusCode !== 201) throw new Error("Patient Charlie registration failed");
+    const patientCharlieToken = patientCharlieRes.body.token;
+    const patientCharlieUserId = patientCharlieRes.body.user.id;
+    const patientCharlieProfile = await Patient.findOne({ user: patientCharlieUserId });
+
+    // Case A: Patient John Owner views own notes -> 200
+    const viewPatientNotesJohn = await apiRequest("GET", `/clinical-notes/patient/${patientJohnProfile._id}`, { Authorization: `Bearer ${patientJohnToken}` });
+    console.log(`[CHECK] Patient John views own notes: Status = ${viewPatientNotesJohn.statusCode} (Expected: 200)`);
+    if (viewPatientNotesJohn.statusCode !== 200) throw new Error("Patient was unable to view their own clinical notes list");
+    console.log("Pagination info:", JSON.stringify(viewPatientNotesJohn.body.data.pagination));
+    if (!viewPatientNotesJohn.body.data.notes || viewPatientNotesJohn.body.data.notes.length !== 1) {
+      throw new Error("Patient notes listing: notes length is incorrect");
+    }
+    // Verify populated fields
+    const noteInList = viewPatientNotesJohn.body.data.notes[0];
+    if (!noteInList.doctorId || !noteInList.doctorId.name || !noteInList.appointmentId) {
+      throw new Error("Populate check: doctor/appointment details were not populated in notes list");
+    }
+
+    // Case B: Patient Charlie views John's notes -> 403
+    const viewPatientNotesCharlie = await apiRequest("GET", `/clinical-notes/patient/${patientJohnProfile._id}`, { Authorization: `Bearer ${patientCharlieToken}` });
+    console.log(`[CHECK] Patient Charlie views John's notes: Status = ${viewPatientNotesCharlie.statusCode} (Expected: 403)`);
+    if (viewPatientNotesCharlie.statusCode !== 403) {
+      throw new Error("Access validation check: Allowed another patient to retrieve patient clinical notes!");
+    }
+
+    // Case C: Doctor Alice (Assigned) views John's notes -> 200
+    const viewPatientNotesAlice = await apiRequest("GET", `/clinical-notes/patient/${patientJohnProfile._id}`, { Authorization: `Bearer ${docAliceToken}` });
+    console.log(`[CHECK] Doctor Alice (Assigned) views John's notes: Status = ${viewPatientNotesAlice.statusCode} (Expected: 200)`);
+    if (viewPatientNotesAlice.statusCode !== 200) throw new Error("Assigned doctor was unable to retrieve patient clinical notes list");
+
+    // Case D: Doctor Bob (Unassigned) views John's notes -> 403
+    const viewPatientNotesBob = await apiRequest("GET", `/clinical-notes/patient/${patientJohnProfile._id}`, { Authorization: `Bearer ${docBobToken}` });
+    console.log(`[CHECK] Doctor Bob (Unassigned) views John's notes: Status = ${viewPatientNotesBob.statusCode} (Expected: 403)`);
+    if (viewPatientNotesBob.statusCode !== 403) {
+      throw new Error("Access validation check: Allowed unassigned doctor to retrieve patient clinical notes list!");
+    }
+
+    // Case E: Admin views John's notes -> 200
+    const viewPatientNotesAdmin = await apiRequest("GET", `/clinical-notes/patient/${patientJohnProfile._id}`, { Authorization: `Bearer ${adminToken}` });
+    console.log(`[CHECK] Admin views John's notes: Status = ${viewPatientNotesAdmin.statusCode} (Expected: 200)`);
+    if (viewPatientNotesAdmin.statusCode !== 200) throw new Error("Admin was unable to retrieve patient clinical notes list");
+
+    // Verify Audit log for patient notes viewed
+    const patientNotesViewAudit = await waitForAuditLog({ action: "CLINICAL_NOTE_VIEWED", userId: patientJohnUserId });
+    if (!patientNotesViewAudit) throw new Error("Audit Log: Patient notes view log not found for John");
+    console.log("✔ Patient notes listing and RBAC access validation succeeded.");
+
+    // Test 2.7: Update Clinical Note (PUT /clinical-notes/:id)
+    console.log("\nRunning Test 2.7: PUT /clinical-notes/:id...");
+
+    const updateNotePayload = {
+      assessment: "Updated Assessment: Recovering well",
+      plan: "Reduce medication dosage. Plan follow-up.",
+    };
+
+    // Case A: Doctor Alice (Creator) updates note -> 200
+    const updateNoteAlice = await apiRequest("PUT", `/clinical-notes/${noteId}`, { Authorization: `Bearer ${docAliceToken}` }, updateNotePayload);
+    console.log(`[CHECK] Doctor Alice (Creator) updates note: Status = ${updateNoteAlice.statusCode} (Expected: 200)`);
+    if (updateNoteAlice.statusCode !== 200) throw new Error("Authoring doctor was unable to update clinical note");
+    console.log(`Updated assessment in response: "${updateNoteAlice.body.data.assessment}"`);
+
+    // Verify in DB directly
+    const noteInDbAfterUpdate = await ClinicalNote.findById(noteId);
+    if (noteInDbAfterUpdate.assessment !== "Updated Assessment: Recovering well") {
+      throw new Error("Update check: assessment field was not updated in DB");
+    }
+
+    // Case B: Doctor Bob (Not Creator) updates note -> 403
+    const updateNoteBob = await apiRequest("PUT", `/clinical-notes/${noteId}`, { Authorization: `Bearer ${docBobToken}` }, updateNotePayload);
+    console.log(`[CHECK] Doctor Bob (Not Creator) updates note: Status = ${updateNoteBob.statusCode} (Expected: 403)`);
+    if (updateNoteBob.statusCode !== 403) {
+      throw new Error("Access validation check: Allowed another doctor to update clinical note!");
+    }
+
+    // Case C: Patient John updates note -> 403
+    const updateNoteJohn = await apiRequest("PUT", `/clinical-notes/${noteId}`, { Authorization: `Bearer ${patientJohnToken}` }, updateNotePayload);
+    console.log(`[CHECK] Patient John updates note: Status = ${updateNoteJohn.statusCode} (Expected: 403)`);
+    if (updateNoteJohn.statusCode !== 403) {
+      throw new Error("Access validation check: Allowed Patient to update clinical note!");
+    }
+
+    // Case D: Admin (Compliance Access) updates note -> 200
+    const adminUpdatePayload = { assessment: "Compliance review completed by Admin" };
+    const updateNoteAdmin = await apiRequest("PUT", `/clinical-notes/${noteId}`, { Authorization: `Bearer ${adminToken}` }, adminUpdatePayload);
+    console.log(`[CHECK] Admin (Compliance) updates note: Status = ${updateNoteAdmin.statusCode} (Expected: 200)`);
+    if (updateNoteAdmin.statusCode !== 200) throw new Error("Admin was unable to update clinical note");
+
+    // Verify Audit log for note update
+    const noteUpdateAudit = await waitForAuditLog({ action: "CLINICAL_NOTE_UPDATED", userId: adminUserId });
+    if (!noteUpdateAudit) throw new Error("Audit Log: Note update log not found for Admin");
+    console.log("✔ Clinical Note updates and RBAC access validation succeeded.");
+
+    // Test 2.8: Delete Clinical Note (Soft Delete) (DELETE /clinical-notes/:id)
+    console.log("\nRunning Test 2.8: DELETE /clinical-notes/:id (Soft Delete)...");
+
+    // Case A: Doctor Bob (Not Creator) tries to delete -> 403
+    const deleteNoteBob = await apiRequest("DELETE", `/clinical-notes/${noteId}`, { Authorization: `Bearer ${docBobToken}` });
+    console.log(`[CHECK] Doctor Bob (Not Creator) deletes note: Status = ${deleteNoteBob.statusCode} (Expected: 403)`);
+    if (deleteNoteBob.statusCode !== 403) {
+      throw new Error("Access validation check: Allowed another doctor to delete clinical note!");
+    }
+
+    // Case B: Patient John tries to delete -> 403
+    const deleteNoteJohn = await apiRequest("DELETE", `/clinical-notes/${noteId}`, { Authorization: `Bearer ${patientJohnToken}` });
+    console.log(`[CHECK] Patient John deletes note: Status = ${deleteNoteJohn.statusCode} (Expected: 403)`);
+    if (deleteNoteJohn.statusCode !== 403) {
+      throw new Error("Access validation check: Allowed Patient to delete clinical note!");
+    }
+
+    // Case C: Doctor Alice (Creator) deletes note -> 200
+    const deleteNoteAlice = await apiRequest("DELETE", `/clinical-notes/${noteId}`, { Authorization: `Bearer ${docAliceToken}` });
+    console.log(`[CHECK] Doctor Alice (Creator) deletes note: Status = ${deleteNoteAlice.statusCode} (Expected: 200)`);
+    if (deleteNoteAlice.statusCode !== 200) throw new Error("Authoring doctor was unable to delete clinical note");
+
+    // Verify Soft Delete state in DB
+    const deletedNoteInDb = await ClinicalNote.findById(noteId);
+    console.log(`[CHECK] Soft Delete field status in DB: isDeleted = ${deletedNoteInDb.isDeleted}, deletedAt = ${deletedNoteInDb.deletedAt}`);
+    if (deletedNoteInDb.isDeleted !== true || !deletedNoteInDb.deletedAt) {
+      throw new Error("Soft delete check: Clinical Note model isDeleted/deletedAt fields not set correctly");
+    }
+
+    // Verify GET /clinical-notes/:id returns 404 for soft-deleted note
+    const getDeletedNote = await apiRequest("GET", `/clinical-notes/${noteId}`, { Authorization: `Bearer ${docAliceToken}` });
+    console.log(`[CHECK] GET /clinical-notes/:id (Soft-deleted note): Status = ${getDeletedNote.statusCode} (Expected: 404)`);
+    if (getDeletedNote.statusCode !== 404) {
+      throw new Error("Soft delete check: GET API returned soft-deleted clinical note!");
+    }
+
+    // Verify GET /clinical-notes/patient/:patientId does not return it
+    const getPatientNotesAfterDelete = await apiRequest("GET", `/clinical-notes/patient/${patientJohnProfile._id}`, { Authorization: `Bearer ${docAliceToken}` });
+    console.log(`[CHECK] GET /clinical-notes/patient/:patientId list length: ${getPatientNotesAfterDelete.body.data.notes ? getPatientNotesAfterDelete.body.data.notes.length : 0} (Expected: 0)`);
+    if (getPatientNotesAfterDelete.body.data.notes && getPatientNotesAfterDelete.body.data.notes.length > 0) {
+      throw new Error("Soft delete check: List API returned soft-deleted clinical note!");
+    }
+
+    // Verify Audit log for note delete
+    const noteDeleteAudit = await waitForAuditLog({ action: "CLINICAL_NOTE_DELETED", userId: docAliceUserId });
+    if (!noteDeleteAudit) throw new Error("Audit Log: Note deletion log not found for Doctor Alice");
+    console.log("✔ Clinical Note soft deletion and query exclusions validated successfully.");
+
     // --- TEST AREA 3: STANDARDIZED ERROR HANDLING ---
     console.log("\n--- [Test Area 3] Standardized Error Handling ---");
 
@@ -443,23 +601,31 @@ const runTests = async () => {
 
     // Clean up test records
     console.log("\nCleaning up test database records...");
+    const finalExistingUsers = await User.find({ email: { $in: testEmails } });
+    const finalUserIds = finalExistingUsers.map((u) => u._id);
+    
+    const finalExistingPatients = await Patient.find({ user: { $in: finalUserIds } });
+    const finalPatientIds = finalExistingPatients.map((p) => p._id);
+    const finalExistingDoctors = await Doctor.find({ user: { $in: finalUserIds } });
+    const finalDoctorIds = finalExistingDoctors.map((d) => d._id);
+
     await Appointment.deleteMany({
       $or: [
-        { patient: { $in: patientIds } },
-        { doctor: { $in: doctorIds } }
+        { patient: { $in: finalPatientIds } },
+        { doctor: { $in: finalDoctorIds } }
       ]
     });
-    await Patient.deleteMany({ user: { $in: userIds } });
-    await Doctor.deleteMany({ user: { $in: userIds } });
-    await MedicalRecord.deleteMany({ patientId: { $in: patientIds } });
+    await Patient.deleteMany({ user: { $in: finalUserIds } });
+    await Doctor.deleteMany({ user: { $in: finalUserIds } });
+    await MedicalRecord.deleteMany({ patientId: { $in: finalPatientIds } });
     await ClinicalNote.deleteMany({
       $or: [
-        { patientId: { $in: userIds } },
-        { doctorId: { $in: userIds } }
+        { patientId: { $in: finalUserIds } },
+        { doctorId: { $in: finalUserIds } }
       ]
     });
-    await User.deleteMany({ _id: { $in: userIds } });
-    await AuditLog.deleteMany({ userId: { $in: userIds } });
+    await User.deleteMany({ _id: { $in: finalUserIds } });
+    await AuditLog.deleteMany({ userId: { $in: finalUserIds } });
     console.log("✔ Cleanup complete.");
 
     console.log("\n========================================================");

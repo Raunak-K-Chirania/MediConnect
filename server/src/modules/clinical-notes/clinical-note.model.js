@@ -42,6 +42,14 @@ const clinicalNoteSchema = new mongoose.Schema(
       type: Date,
       required: [true, "Consultation date is required"],
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
