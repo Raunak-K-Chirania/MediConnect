@@ -9,24 +9,25 @@ const auth = require("../middleware/auth");
 const authorize = require("../middleware/role");
 const { validateBody, createMedicalRecordSchema, updateMedicalRecordSchema } = require("../middleware/validation");
 const medicalRecordService = require("../services/medical-record.service");
+const ApiError = require("../utils/ApiError");
 
 // @route   POST /medical-records
 // @desc    Create a medical record and optional prescription (encrypted)
 // @access  Private (Doctor only)
-router.post("/", auth, authorize("Doctor"), validateBody(createMedicalRecordSchema), async (req, res) => {
+router.post("/", auth, authorize("Doctor"), validateBody(createMedicalRecordSchema), async (req, res, next) => {
   try {
     const { patientId, diagnosis, symptoms, treatmentPlan, medications, allergies, notes, visitDate, prescription } = req.body;
 
     // Verify patient exists
     const patientExists = await Patient.findById(patientId);
     if (!patientExists) {
-      return res.status(404).json({ error: "Patient not found" });
+      throw new ApiError(404, "Patient not found");
     }
 
     // Find Doctor profile linked to the logged in user
     const doctor = await Doctor.findOne({ user: req.user.id });
     if (!doctor) {
-      return res.status(403).json({ error: "Doctor profile not found. Access denied." });
+      throw new ApiError(403, "Doctor profile not found. Access denied.");
     }
 
     // Enforce role-based access / assignment: Doctors can access records only for patients assigned to them (via Appointment)
@@ -35,9 +36,7 @@ router.post("/", auth, authorize("Doctor"), validateBody(createMedicalRecordSche
       doctor: doctor._id,
     });
     if (!isAssigned) {
-      return res.status(403).json({
-        error: "Forbidden: You cannot create a record for a patient who is not assigned to you.",
-      });
+      throw new ApiError(403, "Forbidden: You cannot create a record for a patient who is not assigned to you.");
     }
 
     // Create medical record
@@ -66,21 +65,29 @@ router.post("/", auth, authorize("Doctor"), validateBody(createMedicalRecordSche
       await savedPrescription.save();
     }
 
+    // Set rich audit logging context for middleware
+    req.auditLogData = {
+      action: "MEDICAL_RECORD_CREATED",
+      resourceType: "MedicalRecord",
+      resourceId: medicalRecord._id,
+    };
+
     res.status(201).json({
+      success: true,
       message: "Medical record created successfully",
+      data: { medicalRecord, prescription: savedPrescription },
       medicalRecord,
       prescription: savedPrescription,
     });
   } catch (error) {
-    console.error("Create medical record error:", error.message);
-    res.status(500).json({ error: error.message || "Server error creating medical record" });
+    next(error);
   }
 });
 
 // @route   GET /medical-records/patient/:patientId
 // @desc    Get all medical records for a specific patient
 // @access  Private (Doctor, Admin, or Patient owner)
-router.get("/patient/:patientId", auth, async (req, res) => {
+router.get("/patient/:patientId", auth, async (req, res, next) => {
   try {
     const { patientId } = req.params;
 
@@ -89,13 +96,13 @@ router.get("/patient/:patientId", auth, async (req, res) => {
       // Find patient profile for current user
       const patientProfile = await Patient.findOne({ user: req.user.id });
       if (!patientProfile || patientProfile._id.toString() !== patientId) {
-        return res.status(403).json({ error: "Forbidden: You can only access your own medical records." });
+        throw new ApiError(403, "Forbidden: You can only access your own medical records.");
       }
     } else if (req.user.role === "Doctor") {
       // Find Doctor profile linked to the logged in user
       const doctorProfile = await Doctor.findOne({ user: req.user.id });
       if (!doctorProfile) {
-        return res.status(403).json({ error: "Doctor profile not found. Access denied." });
+        throw new ApiError(403, "Doctor profile not found. Access denied.");
       }
 
       // Check if patient is assigned to this doctor
@@ -104,10 +111,10 @@ router.get("/patient/:patientId", auth, async (req, res) => {
         doctor: doctorProfile._id,
       });
       if (!isAssigned) {
-        return res.status(403).json({ error: "Forbidden: You are not assigned to this patient." });
+        throw new ApiError(403, "Forbidden: You are not assigned to this patient.");
       }
     } else if (req.user.role !== "Admin") {
-      return res.status(403).json({ error: "Forbidden: Access denied." });
+      throw new ApiError(403, "Forbidden: Access denied.");
     }
 
     // Find records, sort by visitDate descending, and populate doctor user info
@@ -128,17 +135,27 @@ router.get("/patient/:patientId", auth, async (req, res) => {
       })
     );
 
-    res.json({ records: recordsWithPrescriptions });
+    // Set rich audit logging context for middleware
+    req.auditLogData = {
+      action: "MEDICAL_RECORD_VIEWED",
+      resourceType: "MedicalRecord",
+    };
+
+    res.json({
+      success: true,
+      message: "Medical records retrieved successfully",
+      data: { records: recordsWithPrescriptions },
+      records: recordsWithPrescriptions,
+    });
   } catch (error) {
-    console.error("Fetch medical records error:", error.message);
-    res.status(500).json({ error: "Server error fetching medical records" });
+    next(error);
   }
 });
 
 // @route   GET /medical-records/:id
 // @desc    Get specific medical record details with prescription
 // @access  Private (Doctor, Admin, or Patient owner)
-router.get("/:id", auth, async (req, res) => {
+router.get("/:id", auth, async (req, res, next) => {
   try {
     const record = await MedicalRecord.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
       .populate({
@@ -151,20 +168,20 @@ router.get("/:id", auth, async (req, res) => {
       });
 
     if (!record) {
-      return res.status(404).json({ error: "Medical record not found" });
+      throw new ApiError(404, "Medical record not found");
     }
 
     // Authorization & Access Control checks
     if (req.user.role === "Patient") {
       const isOwner = record.patientId && record.patientId.user && record.patientId.user._id.toString() === req.user.id.toString();
       if (!isOwner) {
-        return res.status(403).json({ error: "Forbidden: You can only access your own medical records." });
+        throw new ApiError(403, "Forbidden: You can only access your own medical records.");
       }
     } else if (req.user.role === "Doctor") {
       // Find Doctor profile linked to the logged in user
       const doctorProfile = await Doctor.findOne({ user: req.user.id });
       if (!doctorProfile) {
-        return res.status(403).json({ error: "Doctor profile not found. Access denied." });
+        throw new ApiError(403, "Doctor profile not found. Access denied.");
       }
 
       // Check if patient of this medical record is assigned to this doctor
@@ -173,21 +190,30 @@ router.get("/:id", auth, async (req, res) => {
         doctor: doctorProfile._id,
       });
       if (!isAssigned) {
-        return res.status(403).json({ error: "Forbidden: You are not assigned to this patient." });
+        throw new ApiError(403, "Forbidden: You are not assigned to this patient.");
       }
     } else if (req.user.role !== "Admin") {
-      return res.status(403).json({ error: "Forbidden: Access denied." });
+      throw new ApiError(403, "Forbidden: Access denied.");
     }
 
     const prescription = await Prescription.findOne({ medicalRecord: record._id });
 
+    // Set rich audit logging context for middleware
+    req.auditLogData = {
+      action: "MEDICAL_RECORD_VIEWED",
+      resourceType: "MedicalRecord",
+      resourceId: record._id,
+    };
+
     res.json({
+      success: true,
+      message: "Medical record retrieved successfully",
+      data: { record, prescription },
       record,
       prescription,
     });
   } catch (error) {
-    console.error("Fetch record error:", error.message);
-    res.status(500).json({ error: "Server error fetching record details" });
+    next(error);
   }
 });
 

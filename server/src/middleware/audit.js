@@ -1,4 +1,4 @@
-const AuditLog = require("../models/AuditLog");
+const auditService = require("../services/audit.service");
 
 /**
  * Maps HTTP method and matched route path to a human-readable action description.
@@ -67,8 +67,7 @@ const auditLogger = (req, res, next) => {
       
       const logData = req.auditLogData || {};
 
-      const auditEntry = new AuditLog({
-        timestamp: startTime,
+      await auditService.logEvent({
         userId,
         role,
         action: logData.action || null,
@@ -80,8 +79,6 @@ const auditLogger = (req, res, next) => {
         method: req.method,
         statusCode: res.statusCode,
       });
-
-      await auditEntry.save();
     } catch (err) {
       // Fail silently to prevent crashing the server on logging failures, but write to console error
       console.error("Audit logging failed:", err);
