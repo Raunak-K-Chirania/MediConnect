@@ -25,6 +25,7 @@ app.use("/api/patients", require("./routes/patients"));
 app.use("/api/records", require("./routes/records"));
 app.use("/medical-records", require("./routes/records"));
 app.use("/clinical-notes", require("./modules/clinical-notes/clinical-note.routes"));
+app.use("/", require("./modules/scheduling/scheduling.routes"));
 
 app.get("/", (req, res) => {
   res.send("API Running");

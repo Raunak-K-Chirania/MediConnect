@@ -26,6 +26,12 @@ const getPerformedAction = (method, matchedRoute, rawUrl) => {
     "POST /medical-records": "Create Medical Record and Prescription",
     "GET /medical-records/patient/:patientId": "Retrieve Patient Medical Records",
     "GET /medical-records/:id": "Retrieve Medical Record Details",
+    
+    "POST /doctor-availability": "Create Doctor Availability",
+    "PUT /doctor-availability/:id": "Update Doctor Availability",
+    "GET /doctor-availability/:doctorId": "Retrieve Doctor Availability",
+    "GET /appointments/available-slots/:doctorId": "Check Available Slots",
+    "POST /appointments": "Create Appointment Request",
   };
 
   return actionMap[routeKey] || `${method.toUpperCase()} ${rawUrl}`;
