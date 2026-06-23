@@ -629,7 +629,7 @@ const runTests = async () => {
     console.log("✔ Cleanup complete.");
 
     console.log("\n========================================================");
-    console.log("🎉 ALL TESTS PASSED: EHR DAY 2 PART 1 INTEGRATION WORKS!");
+    console.log("🎉 ALL TESTS PASSED: EHR INTEGRATION WORKS!");
     console.log("========================================================");
 
   } catch (error) {
