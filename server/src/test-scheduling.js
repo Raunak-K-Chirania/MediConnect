@@ -315,9 +315,9 @@ const runTests = async () => {
     if (bookAppt1.statusCode !== 201) throw new Error("First appointment booking failed");
     const appt1Id = bookAppt1.body.data._id;
 
-    // Check Audit log for Appointment requested
-    const requestedApptAudit = await waitForAuditLog({ action: "APPOINTMENT_REQUESTED", userId: patientUserId });
-    if (!requestedApptAudit) throw new Error("Audit Log: Appointment requested log not found");
+    // Check Audit log for Appointment created
+    const requestedApptAudit = await waitForAuditLog({ action: "APPOINTMENT_CREATED", userId: patientUserId });
+    if (!requestedApptAudit) throw new Error("Audit Log: Appointment created log not found");
     console.log(`[CHECK] Audit Log: Action = "${requestedApptAudit.action}", ResourceId = "${appt1Id}"`);
 
     // Test 3.2: Verify booked slot disappears from available slots

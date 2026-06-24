@@ -162,10 +162,55 @@ const createAppointmentSchema = z
     }
   );
 
+const rejectAppointmentSchema = z.object({
+  reason: z.string().min(1, "Rejection reason is required"),
+});
+
+const cancelAppointmentSchema = z.object({
+  reason: z.string().min(1, "Cancellation reason is required"),
+});
+
+const rescheduleAppointmentSchema = z
+  .object({
+    newDate: z
+      .string()
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "Invalid date format for newDate",
+      })
+      .transform((val) => new Date(val)),
+    newStartTime: timeStringSchema,
+    newEndTime: timeStringSchema,
+  })
+  .refine(
+    (data) => {
+      return timeToMinutes(data.newEndTime) > timeToMinutes(data.newStartTime);
+    },
+    {
+      message: "Rescheduled endTime must be after startTime",
+      path: ["newEndTime"],
+    }
+  )
+  .refine(
+    (data) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const apptDate = new Date(data.newDate);
+      apptDate.setHours(0, 0, 0, 0);
+      return apptDate >= today;
+    },
+    {
+      message: "Rescheduled date cannot be in the past",
+      path: ["newDate"],
+    }
+  );
+
 module.exports = {
   timeToMinutes,
   objectIdSchema,
   createAvailabilitySchema,
   updateAvailabilitySchema,
   createAppointmentSchema,
+  rejectAppointmentSchema,
+  cancelAppointmentSchema,
+  rescheduleAppointmentSchema,
 };
