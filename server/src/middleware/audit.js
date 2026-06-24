@@ -32,6 +32,15 @@ const getPerformedAction = (method, matchedRoute, rawUrl) => {
     "GET /doctor-availability/:doctorId": "Retrieve Doctor Availability",
     "GET /appointments/available-slots/:doctorId": "Check Available Slots",
     "POST /appointments": "Create Appointment Request",
+    "PATCH /appointments/:id/approve": "Approve Appointment",
+    "PATCH /appointments/:id/reject": "Reject Appointment",
+    "PATCH /appointments/:id/cancel": "Cancel Appointment",
+    "PATCH /appointments/:id/complete": "Complete Appointment",
+    "PATCH /appointments/:id/reschedule": "Reschedule Appointment",
+    "GET /appointments/:id": "Retrieve Appointment Details",
+    "GET /appointments/patient/:patientId": "Retrieve Patient Appointments",
+    "GET /appointments/doctor/:doctorId": "Retrieve Doctor Appointments",
+    "GET /appointments/upcoming": "Retrieve Upcoming Appointments",
   };
 
   return actionMap[routeKey] || `${method.toUpperCase()} ${rawUrl}`;

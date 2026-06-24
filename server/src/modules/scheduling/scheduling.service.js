@@ -21,6 +21,7 @@ const verifyAppointmentRequest = async ({
   appointmentDate,
   startTime,
   endTime,
+  excludeAppointmentId,
 }) => {
   // 1. Verify Doctor exists
   const doctorUser = await User.findById(doctorId);
@@ -77,11 +78,17 @@ const verifyAppointmentRequest = async ({
   const endOfDay = new Date(appointmentDate);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const existingAppts = await Appointment.find({
+  const query = {
     doctorId,
     appointmentDate: { $gte: startOfDay, $lte: endOfDay },
     status: { $in: ["pending", "approved", "completed", "Scheduled", "Completed"] },
-  });
+  };
+
+  if (excludeAppointmentId) {
+    query._id = { $ne: excludeAppointmentId };
+  }
+
+  const existingAppts = await Appointment.find(query);
 
   for (const appt of existingAppts) {
     const existingStart = timeToMinutes(appt.startTime);
