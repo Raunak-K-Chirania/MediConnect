@@ -3,9 +3,13 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './routes/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
+<<<<<<< HEAD
 import PatientDashboard from './pages/PatientDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+=======
+import { PatientDashboard, DoctorDashboard, AdminDashboard } from './pages/DashboardMock';
+>>>>>>> 51405300a6cdff1a9a2799419cfa575ac0839b9b
 
 export const App: React.FC = () => {
   return (
