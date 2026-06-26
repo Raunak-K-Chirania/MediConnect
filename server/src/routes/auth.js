@@ -177,4 +177,17 @@ router.get("/me", auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/auth/doctors
+// @desc    Get all doctors profiles populated with user details
+// @access  Private
+router.get("/doctors", auth, async (req, res) => {
+  try {
+    const doctors = await Doctor.find().populate("user", "name email role");
+    res.json({ doctors });
+  } catch (error) {
+    console.error("Fetch doctors error:", error);
+    res.status(500).json({ error: "Server error fetching doctors" });
+  }
+});
+
 module.exports = router;

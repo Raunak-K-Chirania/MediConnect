@@ -3,7 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './routes/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import { PatientDashboard, DoctorDashboard, AdminDashboard } from './pages/DashboardMock';
+import PatientDashboard from './pages/PatientDashboard';
+import DoctorDashboard from './pages/DoctorDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 export const App: React.FC = () => {
   return (

@@ -88,4 +88,17 @@ router.put("/me", auth, authorize("Patient"), async (req, res) => {
   }
 });
 
+// @route   GET /api/patients
+// @desc    Get all patient profiles populated with user details
+// @access  Private (Doctor or Admin only)
+router.get("/", auth, authorize(["Doctor", "Admin"]), async (req, res) => {
+  try {
+    const patients = await Patient.find().populate("user", "name email role");
+    res.json({ patients });
+  } catch (error) {
+    console.error("Fetch patients error:", error);
+    res.status(500).json({ error: "Server error fetching patients" });
+  }
+});
+
 module.exports = router;

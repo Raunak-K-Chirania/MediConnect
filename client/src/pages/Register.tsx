@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, Activity, AlertCircle, CheckCircle2, Stethoscope, FileText, Check, X } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Activity, AlertCircle, CheckCircle2, Stethoscope, FileText, Check, X, Video, Calendar } from 'lucide-react';
 import { registerSchema, RegisterInput } from '../schemas/authSchema';
 import { authService } from '../services/authService';
 
@@ -74,353 +74,424 @@ export const Register: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 bg-radial-glow px-4 py-12 relative overflow-hidden font-sans">
-      {/* Decorative background components */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-600/10 rounded-full blur-[120px]" />
+    <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-tr from-sky-100 via-slate-50 to-teal-50 px-4 py-3 relative overflow-hidden font-sans">
+      {/* Colorful decorative background blobs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-400/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-teal-400/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-[30%] right-[-5%] w-[30%] h-[30%] bg-sky-400/15 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="w-full max-w-lg z-10 my-8">
-        {/* Brand Logo & Header */}
-        <div className="text-center mb-8 flex flex-col items-center">
-          <div className="w-14 h-14 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl flex items-center justify-center mb-3 text-indigo-400 text-glow shadow-[0_0_20px_rgba(99,102,241,0.2)] animate-pulse">
-            <Activity className="w-8 h-8" />
+      <div className="w-full max-w-4xl bg-white/80 backdrop-blur-xl border border-white/60 rounded-2xl shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-12 z-10">
+        
+        {/* Left Side: Brand presentation (takes 5 columns) */}
+        <div className="md:col-span-5 bg-gradient-to-br from-indigo-500 via-indigo-700 to-teal-600 p-6 flex flex-col justify-between text-white relative overflow-hidden">
+          {/* Subtle background overlay */}
+          <div className="absolute inset-0 bg-black/10 mix-blend-overlay" />
+          <div className="absolute bottom-[-20%] left-[-20%] w-[60%] h-[60%] bg-indigo-400/20 rounded-full blur-[60px]" />
+          
+          <div className="relative z-10 space-y-4">
+            {/* Logo */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-white/20 backdrop-blur-sm p-0.5 rounded-lg flex items-center justify-center shadow-sm">
+                <div className="w-full h-full bg-white rounded-[5px] flex items-center justify-center text-indigo-650">
+                  <Activity className="w-5 h-5 text-indigo-500" />
+                </div>
+              </div>
+              <h1 className="text-xl font-black tracking-tight font-display">
+                MediConnect
+              </h1>
+            </div>
+            
+            {/* Title / Description */}
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold tracking-tight leading-tight">
+                Create Your Account
+              </h2>
+              <p className="text-[11px] text-indigo-100 leading-relaxed">
+                Unlock specialized patient portals, consult directly with board-certified physicians, and manage electronic health history reports effortlessly.
+              </p>
+            </div>
+            
+            {/* Detail Bullet Points */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-start gap-2">
+                <div className="w-4.5 h-4.5 bg-white/10 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="w-2.5 h-2.5 text-indigo-200" />
+                </div>
+                <div>
+                  <h3 className="text-[11px] font-bold text-white">For Patients</h3>
+                  <p className="text-[9px] text-indigo-100">Schedule real-time visits, video consults, and manage medical files.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <div className="w-4.5 h-4.5 bg-white/10 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <Stethoscope className="w-2.5 h-2.5 text-indigo-200" />
+                </div>
+                <div>
+                  <h3 className="text-[11px] font-bold text-white">For Medical Providers</h3>
+                  <p className="text-[9px] text-indigo-100">Publish calendars, configure slot intervals, and write digital SOAP reports.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <div className="w-4.5 h-4.5 bg-white/10 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <Lock className="w-2.5 h-2.5 text-indigo-200" />
+                </div>
+                <div>
+                  <h3 className="text-[11px] font-bold text-white">Secure Encrypted Database</h3>
+                  <p className="text-[9px] text-indigo-100">Personal metadata and EHR logs are stored fully encrypted.</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white font-display">
-            Medi<span className="text-indigo-400">Connect</span>
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">
-            Create your account to start consults
-          </p>
+          
+          {/* Trust Badge at bottom */}
+          <div className="relative z-10 pt-3 border-t border-white/10 text-[9px] text-indigo-200 flex items-center gap-1.5 font-medium">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+            <span>HIPAA-aligned security protocols</span>
+          </div>
         </div>
+        
+        {/* Right Side: Form panel (takes 7 columns) */}
+        <div className="md:col-span-7 p-5 sm:p-6 flex flex-col justify-center bg-white">
+          <div className="w-full mx-auto">
+            <h2 className="text-base font-black text-slate-800 tracking-tight">Create New Account</h2>
+            <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Register to start using telemedicine services</p>
 
-        {/* Card Body */}
-        <div className="bg-slate-950/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl">
-          <h2 className="text-xl font-bold text-white mb-6">Create New Account</h2>
-
-          {/* Error Alert */}
-          {errorMessage && (
-            <div className="mb-6 p-4 bg-red-950/40 border border-red-800/60 text-red-200 text-sm rounded-xl flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {/* Success Alert */}
-          {successMessage && (
-            <div className="mb-6 p-4 bg-emerald-950/40 border border-emerald-800/60 text-emerald-200 text-sm rounded-xl flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Role Switcher */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Registering As
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setValue('role', 'patient')}
-                  className={`flex flex-col items-center justify-center p-4 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
-                    selectedRole === 'patient'
-                      ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400'
-                      : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <User className="w-6 h-6 mb-2" />
-                  <span className="text-sm font-bold">Patient</span>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setValue('role', 'doctor')}
-                  className={`flex flex-col items-center justify-center p-4 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
-                    selectedRole === 'doctor'
-                      ? 'bg-teal-500/10 border-teal-500 text-teal-400'
-                      : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <Stethoscope className="w-6 h-6 mb-2" />
-                  <span className="text-sm font-bold">Doctor</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Name field */}
-            <div>
-              <label htmlFor="name" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Full Name
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <User className="w-5 h-5" />
-                </div>
-                <input
-                  id="name"
-                  type="text"
-                  placeholder="John Doe"
-                  disabled={registerMutation.isPending}
-                  className={`w-full pl-11 pr-4 py-3 bg-slate-900 border ${
-                    errors.name ? 'border-red-500/80 focus:border-red-500' : 'border-slate-800 focus:border-indigo-500/80'
-                  } focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-white rounded-xl text-sm transition-all placeholder-slate-600`}
-                  {...register('name')}
-                />
-              </div>
-              {errors.name && (
-                <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  {errors.name.message}
-                </p>
-              )}
-            </div>
-
-            {/* Email field */}
-            <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  disabled={registerMutation.isPending}
-                  className={`w-full pl-11 pr-4 py-3 bg-slate-900 border ${
-                    errors.email ? 'border-red-500/80 focus:border-red-500' : 'border-slate-800 focus:border-indigo-500/80'
-                  } focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-white rounded-xl text-sm transition-all placeholder-slate-600`}
-                  {...register('email')}
-                />
-              </div>
-              {errors.email && (
-                <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            {/* Doctor-Specific Fields (Conditional) */}
-            {selectedRole === 'doctor' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 animate-fadeIn">
-                <div>
-                  <label htmlFor="specialization" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    Specialization
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                      <Stethoscope className="w-5 h-5" />
-                    </div>
-                    <input
-                      id="specialization"
-                      type="text"
-                      placeholder="e.g., Cardiology"
-                      disabled={registerMutation.isPending}
-                      className={`w-full pl-11 pr-4 py-3 bg-slate-900 border ${
-                        errors.specialization ? 'border-red-500/80 focus:border-red-500' : 'border-slate-800 focus:border-teal-500/80'
-                      } focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-white rounded-xl text-sm transition-all placeholder-slate-600`}
-                      {...register('specialization')}
-                    />
-                  </div>
-                  {errors.specialization && (
-                    <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      {errors.specialization.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="licenseNumber" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    License Number
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <input
-                      id="licenseNumber"
-                      type="text"
-                      placeholder="e.g., LIC-12345"
-                      disabled={registerMutation.isPending}
-                      className={`w-full pl-11 pr-4 py-3 bg-slate-900 border ${
-                        errors.licenseNumber ? 'border-red-500/80 focus:border-red-500' : 'border-slate-800 focus:border-teal-500/80'
-                      } focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-white rounded-xl text-sm transition-all placeholder-slate-600`}
-                      {...register('licenseNumber')}
-                    />
-                  </div>
-                  {errors.licenseNumber && (
-                    <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      {errors.licenseNumber.message}
-                    </p>
-                  )}
-                </div>
+            {/* Error Alert */}
+            {errorMessage && (
+              <div className="mb-2 p-1.5 bg-red-50 border border-red-100 text-red-800 text-[9px] rounded-lg flex items-start gap-1">
+                <AlertCircle className="w-3 h-3 text-red-500 shrink-0 mt-0.5" />
+                <span className="font-semibold">{errorMessage}</span>
               </div>
             )}
 
-            {/* Password field */}
-            <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  disabled={registerMutation.isPending}
-                  className={`w-full pl-11 pr-11 py-3 bg-slate-900 border ${
-                    errors.password ? 'border-red-500/80 focus:border-red-500' : 'border-slate-800 focus:border-indigo-500/80'
-                  } focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-white rounded-xl text-sm transition-all placeholder-slate-600`}
-                  {...register('password')}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+            {/* Success Alert */}
+            {successMessage && (
+              <div className="mb-2 p-1.5 bg-emerald-50 border border-emerald-100 text-emerald-800 text-[9px] rounded-lg flex items-start gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
+                <span className="font-semibold">{successMessage}</span>
               </div>
-              {errors.password && (
-                <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  {errors.password.message}
-                </p>
+            )}
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-1.5">
+              {/* Role Switcher */}
+              <div>
+                <label className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                  Registering As
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setValue('role', 'patient')}
+                    className={`flex items-center justify-center gap-1 py-1 px-2.5 rounded-lg border text-center transition-all duration-200 cursor-pointer ${
+                      selectedRole === 'patient'
+                        ? 'bg-indigo-50 border-indigo-300 text-indigo-600 font-bold shadow-sm'
+                        : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">Patient</span>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setValue('role', 'doctor')}
+                    className={`flex items-center justify-center gap-1 py-1 px-2.5 rounded-lg border text-center transition-all duration-200 cursor-pointer ${
+                      selectedRole === 'doctor'
+                        ? 'bg-teal-50 border-teal-300 text-teal-600 font-bold shadow-sm'
+                        : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-teal-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <Stethoscope className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">Doctor</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Name & Email grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Name field */}
+                <div>
+                  <label htmlFor="name" className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400">
+                      <User className="w-3 h-3" />
+                    </div>
+                    <input
+                      id="name"
+                      type="text"
+                      placeholder="John Doe"
+                      disabled={registerMutation.isPending}
+                      className={`w-full pl-7 pr-2 py-1 bg-slate-50/50 border ${
+                        errors.name ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-sky-500'
+                      } focus:outline-none focus:ring-1 focus:ring-sky-100 text-slate-800 rounded-lg text-xs transition-all placeholder-slate-400`}
+                      {...register('name')}
+                    />
+                  </div>
+                  {errors.name && (
+                    <p className="mt-0.5 text-[8px] text-red-500 flex items-center gap-0.5 font-medium">
+                      <AlertCircle className="w-2.5 h-2.5" />
+                      {errors.name.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Email field */}
+                <div>
+                  <label htmlFor="email" className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400">
+                      <Mail className="w-3 h-3" />
+                    </div>
+                    <input
+                      id="email"
+                      type="email"
+                      placeholder="name@example.com"
+                      disabled={registerMutation.isPending}
+                      className={`w-full pl-7 pr-2 py-1 bg-slate-50/50 border ${
+                        errors.email ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-sky-500'
+                      } focus:outline-none focus:ring-1 focus:ring-sky-100 text-slate-800 rounded-lg text-xs transition-all placeholder-slate-400`}
+                      {...register('email')}
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="mt-0.5 text-[8px] text-red-500 flex items-center gap-0.5 font-medium">
+                      <AlertCircle className="w-2.5 h-2.5" />
+                      {errors.email.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Doctor-Specific Fields (Conditional) */}
+              {selectedRole === 'doctor' && (
+                <div className="grid grid-cols-2 gap-2 pt-0.5 animate-fadeIn">
+                  <div>
+                    <label htmlFor="specialization" className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                      Specialization
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400">
+                        <Stethoscope className="w-3.5 h-3.5" />
+                      </div>
+                      <input
+                        id="specialization"
+                        type="text"
+                        placeholder="Cardiology"
+                        disabled={registerMutation.isPending}
+                        className={`w-full pl-7 pr-2 py-1 bg-slate-50/50 border ${
+                          errors.specialization ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-teal-500'
+                        } focus:outline-none focus:ring-1 focus:ring-teal-50 text-slate-800 rounded-lg text-xs transition-all placeholder-slate-400`}
+                        {...register('specialization')}
+                      />
+                    </div>
+                    {errors.specialization && (
+                      <p className="mt-0.5 text-[8px] text-red-500 flex items-center gap-0.5 font-medium">
+                        <AlertCircle className="w-2.5 h-2.5" />
+                        {errors.specialization.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="licenseNumber" className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                      License Number
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400">
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
+                      <input
+                        id="licenseNumber"
+                        type="text"
+                        placeholder="LIC-12345"
+                        disabled={registerMutation.isPending}
+                        className={`w-full pl-7 pr-2 py-1 bg-slate-50/50 border ${
+                          errors.licenseNumber ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-teal-500'
+                        } focus:outline-none focus:ring-1 focus:ring-teal-50 text-slate-800 rounded-lg text-xs transition-all placeholder-slate-400`}
+                        {...register('licenseNumber')}
+                      />
+                    </div>
+                    {errors.licenseNumber && (
+                      <p className="mt-0.5 text-[8px] text-red-500 flex items-center gap-0.5 font-medium">
+                        <AlertCircle className="w-2.5 h-2.5" />
+                        {errors.licenseNumber.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
               )}
 
-              {/* Password strength checklist */}
-              <div className="mt-3 p-3 bg-slate-900/50 border border-slate-900 rounded-xl space-y-1.5 text-xs text-slate-400">
-                <div className="font-semibold text-[10px] uppercase text-slate-500 tracking-wider mb-1">
+              {/* Password & Confirm Password Grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Password field */}
+                <div>
+                  <label htmlFor="password" className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-3 h-3" />
+                    </div>
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      disabled={registerMutation.isPending}
+                      className={`w-full pl-7 pr-7 py-1 bg-slate-50/50 border ${
+                        errors.password ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-sky-500'
+                      } focus:outline-none focus:ring-1 focus:ring-sky-100 text-slate-800 rounded-lg text-xs transition-all placeholder-slate-400`}
+                      {...register('password')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <p className="mt-0.5 text-[8px] text-red-500 flex items-center gap-0.5 font-medium">
+                      <AlertCircle className="w-2.5 h-2.5" />
+                      {errors.password.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Confirm Password field */}
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-3 h-3" />
+                    </div>
+                    <input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      disabled={registerMutation.isPending}
+                      className={`w-full pl-7 pr-7 py-1 bg-slate-50/50 border ${
+                        errors.confirmPassword ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-sky-500'
+                      } focus:outline-none focus:ring-1 focus:ring-sky-100 text-slate-800 rounded-lg text-xs transition-all placeholder-slate-400`}
+                      {...register('confirmPassword')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && (
+                    <p className="mt-0.5 text-[8px] text-red-500 flex items-center gap-0.5 font-medium">
+                      <AlertCircle className="w-2.5 h-2.5" />
+                      {errors.confirmPassword.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Password strength checklist (2-column layout) */}
+              <div className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg grid grid-cols-2 gap-x-2 gap-y-0.5 text-[8.5px] text-slate-500 leading-relaxed font-sans">
+                <div className="col-span-2 font-bold text-[7.5px] uppercase text-slate-400 tracking-wider mb-0.5">
                   Password Requirements
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5">
                   {criteria.length ? (
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <Check className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
                   ) : (
-                    <X className="w-4 h-4 text-slate-600 shrink-0" />
+                    <X className="w-2.5 h-2.5 text-slate-300 shrink-0" />
                   )}
-                  <span className={criteria.length ? 'text-slate-300' : 'text-slate-500'}>
+                  <span className={criteria.length ? 'text-slate-700 font-medium' : 'text-slate-400'}>
                     At least 8 characters
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5">
                   {criteria.uppercase ? (
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <Check className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
                   ) : (
-                    <X className="w-4 h-4 text-slate-600 shrink-0" />
+                    <X className="w-2.5 h-2.5 text-slate-300 shrink-0" />
                   )}
-                  <span className={criteria.uppercase ? 'text-slate-300' : 'text-slate-500'}>
-                    At least one uppercase letter (A-Z)
+                  <span className={criteria.uppercase ? 'text-slate-700 font-medium' : 'text-slate-400'}>
+                    One uppercase (A-Z)
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5">
                   {criteria.lowercase ? (
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <Check className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
                   ) : (
-                    <X className="w-4 h-4 text-slate-600 shrink-0" />
+                    <X className="w-2.5 h-2.5 text-slate-300 shrink-0" />
                   )}
-                  <span className={criteria.lowercase ? 'text-slate-300' : 'text-slate-500'}>
-                    At least one lowercase letter (a-z)
+                  <span className={criteria.lowercase ? 'text-slate-700 font-medium' : 'text-slate-400'}>
+                    One lowercase (a-z)
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5">
                   {criteria.number ? (
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <Check className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
                   ) : (
-                    <X className="w-4 h-4 text-slate-600 shrink-0" />
+                    <X className="w-2.5 h-2.5 text-slate-300 shrink-0" />
                   )}
-                  <span className={criteria.number ? 'text-slate-300' : 'text-slate-500'}>
-                    At least one number (0-9)
+                  <span className={criteria.number ? 'text-slate-700 font-medium' : 'text-slate-400'}>
+                    One number (0-9)
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5">
                   {criteria.special ? (
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <Check className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
                   ) : (
-                    <X className="w-4 h-4 text-slate-600 shrink-0" />
+                    <X className="w-2.5 h-2.5 text-slate-300 shrink-0" />
                   )}
-                  <span className={criteria.special ? 'text-slate-300' : 'text-slate-500'}>
-                    At least one special character (!@#$%^&*)
+                  <span className={criteria.special ? 'text-slate-700 font-medium' : 'text-slate-400'}>
+                    One symbol (!@#$)
                   </span>
                 </div>
               </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={registerMutation.isPending}
+                className={`w-full flex items-center justify-center py-1 px-3 border border-transparent text-xs font-bold rounded-lg text-white transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md mt-2 ${
+                  selectedRole === 'doctor'
+                    ? 'bg-gradient-to-r from-teal-500 to-emerald-600 hover:opacity-95'
+                    : 'bg-gradient-to-r from-indigo-500 to-sky-600 hover:opacity-95'
+                }`}
+              >
+                {registerMutation.isPending ? (
+                  <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Registering...</span>
+                  </div>
+                ) : (
+                  'Create Account'
+                )}
+              </button>
+            </form>
+
+            {/* Footer Link */}
+            <div className="mt-2 pt-2 border-t border-slate-100 text-center text-xs text-slate-500 font-medium">
+              Already have an account?{' '}
+              <Link to="/login" className="font-bold text-indigo-600 hover:text-indigo-500 hover:underline transition-all">
+                Sign in here
+              </Link>
             </div>
-
-            {/* Confirm Password field */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  disabled={registerMutation.isPending}
-                  className={`w-full pl-11 pr-11 py-3 bg-slate-900 border ${
-                    errors.confirmPassword ? 'border-red-500/80 focus:border-red-500' : 'border-slate-800 focus:border-indigo-500/80'
-                  } focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-white rounded-xl text-sm transition-all placeholder-slate-600`}
-                  {...register('confirmPassword')}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              {errors.confirmPassword && (
-                <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  {errors.confirmPassword.message}
-                </p>
-              )}
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={registerMutation.isPending}
-              className={`w-full flex items-center justify-center py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg mt-6 ${
-                selectedRole === 'doctor'
-                  ? 'bg-teal-600 hover:bg-teal-500 focus:ring-teal-500 shadow-teal-600/25'
-                  : 'bg-indigo-600 hover:bg-indigo-500 focus:ring-indigo-500 shadow-indigo-600/25'
-              }`}
-            >
-              {registerMutation.isPending ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Registering...</span>
-                </div>
-              ) : (
-                'Create Account'
-              )}
-            </button>
-          </form>
-
-          {/* Footer Link */}
-          <div className="mt-8 pt-6 border-t border-slate-900 text-center text-sm text-slate-400">
-            Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-indigo-400 hover:text-indigo-300 hover:underline transition-all">
-              Sign in here
-            </Link>
           </div>
         </div>
+
       </div>
     </div>
   );
 };
 export default Register;
+
+
