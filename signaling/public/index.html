@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediConnect WebRTC Signaling Tester</title>
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-primary: #f8fafc;
+      --bg-secondary: #ffffff;
+      --border-color: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --teal: #0d9488;
+      --teal-hover: #0f766e;
+      --indigo: #4f46e5;
+      --indigo-hover: #4338ca;
+      --emerald: #059669;
+      --rose: #e11d48;
+      --amber: #d97706;
+      --card-bg: rgba(255, 255, 255, 0.85);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg-primary);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(20, 184, 166, 0.05) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(10px);
+      background-color: rgba(255, 255, 255, 0.8);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 2.25rem;
+      height: 2.25rem;
+      background: linear-gradient(135deg, var(--teal), var(--indigo));
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: white;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      background: linear-gradient(to right, #0f172a, #475569);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0.875rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      background-color: rgba(225, 29, 72, 0.1);
+      border: 1px solid rgba(225, 29, 72, 0.2);
+      color: var(--rose);
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.connected {
+      background-color: rgba(5, 150, 105, 0.1);
+      border: 1px solid rgba(5, 150, 105, 0.2);
+      color: var(--emerald);
+    }
+
+    .status-dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background-color: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+
+    @media (min-width: 1024px) {
+      main {
+        grid-template-columns: 380px 1fr;
+      }
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-group label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .form-input {
+      background-color: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--indigo);
+      box-shadow: 0 0 0 1px var(--indigo);
+    }
+
+    .btn {
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-teal {
+      background-color: var(--teal);
+      color: white;
+    }
+
+    .btn-teal:hover:not(:disabled) {
+      background-color: var(--teal-hover);
+    }
+
+    .btn-indigo {
+      background-color: var(--indigo);
+      color: white;
+    }
+
+    .btn-indigo:hover:not(:disabled) {
+      background-color: var(--indigo-hover);
+    }
+
+    .btn-danger {
+      background-color: rgba(225, 29, 72, 0.1);
+      border: 1px solid rgba(225, 29, 72, 0.2);
+      color: var(--rose);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background-color: rgba(225, 29, 72, 0.2);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .user-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .user-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.625rem 0.875rem;
+      background-color: #f1f5f9;
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .user-item-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .user-item-role {
+      font-size: 0.7rem;
+      padding: 0.125rem 0.375rem;
+      border-radius: 0.25rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .role-doctor {
+      background-color: rgba(13, 148, 136, 0.1);
+      border: 1px solid rgba(13, 148, 136, 0.2);
+      color: var(--teal);
+    }
+
+    .role-patient {
+      background-color: rgba(79, 70, 229, 0.1);
+      border: 1px solid rgba(79, 70, 229, 0.2);
+      color: var(--indigo);
+    }
+
+    .role-admin {
+      background-color: rgba(217, 119, 6, 0.1);
+      border: 1px solid rgba(217, 119, 6, 0.2);
+      color: var(--amber);
+    }
+
+    .terminal-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      height: 100%;
+      min-height: 450px;
+    }
+
+    .terminal-header {
+      background-color: #f1f5f9;
+      border: 1px solid var(--border-color);
+      border-bottom: none;
+      border-top-left-radius: 0.75rem;
+      border-top-right-radius: 0.75rem;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 0.375rem;
+    }
+
+    .terminal-dot {
+      width: 0.75rem;
+      height: 0.75rem;
+      border-radius: 50%;
+    }
+
+    .terminal-dot-red { background-color: var(--rose); }
+    .terminal-dot-yellow { background-color: var(--amber); }
+    .terminal-dot-green { background-color: var(--emerald); }
+
+    .terminal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .terminal-body {
+      background-color: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-bottom-left-radius: 0.75rem;
+      border-bottom-right-radius: 0.75rem;
+      flex: 1;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      padding: 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      color: #0f172a;
+      max-height: 400px;
+    }
+
+    .log-item {
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .log-time {
+      color: #94a3b8;
+    }
+
+    .log-info { color: #2563eb; }
+    .log-success { color: var(--emerald); }
+    .log-warning { color: var(--amber); }
+    .log-danger { color: var(--rose); }
+    .log-message { color: #334155; }
+
+    .test-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .chat-section {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      border-top: 1px solid var(--border-color);
+      padding-top: 1rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      border-top: 1px solid var(--border-color);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: auto;
+    }
+
+    .empty-text {
+      text-align: center;
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.85rem;
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">M</div>
+      <div class="brand-title">MediConnect Signaling Server Test Console</div>
+    </div>
+    <div id="connectionStatus" class="status-badge">
+      <div class="status-dot"></div>
+      <span id="connectionText">Disconnected</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Column: Controls -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        Room Configuration
+      </div>
+      
+      <div class="form-group">
+        <label for="userId">User ID</label>
+        <input type="text" id="userId" class="form-input" value="user-999" placeholder="e.g. pat-123, doc-house">
+      </div>
+
+      <div class="form-group">
+        <label for="userRole">Role</label>
+        <input type="text" id="userRole" class="form-input" value="Patient" placeholder="Patient, Doctor, or Admin">
+      </div>
+
+      <div class="form-group">
+        <label for="roomId">Room ID</label>
+        <input type="text" id="roomId" class="form-input" value="room-123" placeholder="e.g. consult-xyz">
+      </div>
+
+      <button id="joinBtn" class="btn btn-teal">
+        Join Room
+      </button>
+
+      <button id="leaveBtn" class="btn btn-danger" disabled>
+        Leave Room
+      </button>
+
+      <div class="card-title" style="margin-top: 1rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Users in Room
+      </div>
+      
+      <ul id="userList" class="user-list">
+        <li class="empty-text">Not in a room</li>
+      </ul>
+    </div>
+
+    <!-- Right Column: Console/Logs -->
+    <div class="card" style="gap: 1rem;">
+      <div class="card-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-terminal"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Real-Time Signal Log & WebRTC Simulation
+      </div>
+
+      <div class="terminal-container">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <div class="terminal-dot terminal-dot-red"></div>
+            <div class="terminal-dot terminal-dot-yellow"></div>
+            <div class="terminal-dot terminal-dot-green"></div>
+          </div>
+          <div class="terminal-title">signaling_event_listener.sh</div>
+          <button id="clearLogBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem; font-family: inherit;">Clear Console</button>
+        </div>
+        <div id="terminalBody" class="terminal-body">
+          <div class="log-item"><span class="log-time">[System Log]</span> <span class="log-info">Signaling tester initialized. Ready to connect...</span></div>
+        </div>
+      </div>
+
+      <!-- Test operations (Available only when in room) -->
+      <div id="actionPanel" style="display: none;">
+        <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 0.5rem;">WebRTC Signaling Actions</div>
+        
+        <div class="test-actions">
+          <button id="btnOffer" class="btn btn-indigo">
+            Simulate WebRTC Offer
+          </button>
+          <button id="btnAnswer" class="btn btn-indigo">
+            Simulate WebRTC Answer
+          </button>
+          <button id="btnIce" class="btn btn-indigo">
+            Simulate ICE Candidate
+          </button>
+        </div>
+
+        <div class="chat-section">
+          <input type="text" id="chatInput" class="form-input" placeholder="Type a message to other peers in the room...">
+          <button id="btnSendChat" class="btn btn-teal">Send Signal</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    MediConnect Telemedicine Platform • Real-time WebRTC Signaling Broker Service
+  </footer>
+
+  <!-- Include Socket.io client library served by our express server -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Connect to the socket server
+      const socket = io();
+
+      // UI Element references
+      const connectionStatus = document.getElementById("connectionStatus");
+      const connectionText = document.getElementById("connectionText");
+      const userIdInput = document.getElementById("userId");
+      const userRoleInput = document.getElementById("userRole");
+      const roomIdInput = document.getElementById("roomId");
+      const joinBtn = document.getElementById("joinBtn");
+      const leaveBtn = document.getElementById("leaveBtn");
+      const userList = document.getElementById("userList");
+      const terminalBody = document.getElementById("terminalBody");
+      const actionPanel = document.getElementById("actionPanel");
+      const btnOffer = document.getElementById("btnOffer");
+      const btnAnswer = document.getElementById("btnAnswer");
+      const btnIce = document.getElementById("btnIce");
+      const chatInput = document.getElementById("chatInput");
+      const btnSendChat = document.getElementById("btnSendChat");
+      const clearLogBtn = document.getElementById("clearLogBtn");
+
+      let currentRoom = null;
+
+      // Socket.io Connection Status updates
+      socket.on("connect", () => {
+        connectionStatus.classList.add("connected");
+        connectionText.textContent = `Connected (Socket ID: ${socket.id})`;
+        log("success", `Connected to signaling server with socket ID: ${socket.id}`);
+      });
+
+      socket.on("disconnect", () => {
+        connectionStatus.classList.remove("connected");
+        connectionText.textContent = "Disconnected";
+        log("danger", "Disconnected from signaling server.");
+        handleRoomLeftState();
+      });
+
+      // Join Room logic
+      joinBtn.addEventListener("click", () => {
+        const roomId = roomIdInput.value.trim();
+        const userId = userIdInput.value.trim();
+        const role = userRoleInput.value.trim();
+
+        if (!roomId || !userId) {
+          alert("Please fill in Room ID and User ID.");
+          return;
+        }
+
+        log("info", `Requesting to join room "${roomId}" as ${userId} (${role})...`);
+        socket.emit("join-room", { roomId, userId, role });
+      });
+
+      // Leave Room logic
+      leaveBtn.addEventListener("click", () => {
+        log("info", `Leaving room "${currentRoom}"...`);
+        socket.emit("leave-room");
+        handleRoomLeftState();
+      });
+
+      // Handle server acknowledgment of users in the room
+      socket.on("room-users", ({ roomId, users }) => {
+        currentRoom = roomId;
+        log("success", `Successfully joined room "${roomId}". Currently active peers: ${users.length}`);
+        
+        // Update user list UI
+        userList.innerHTML = "";
+        users.forEach(user => {
+          addUserToList(user);
+        });
+
+        // Toggle action panel visibility and buttons
+        joinBtn.disabled = true;
+        leaveBtn.disabled = false;
+        userIdInput.disabled = true;
+        userRoleInput.disabled = true;
+        roomIdInput.disabled = true;
+        actionPanel.style.display = "block";
+      });
+
+      // A new user has joined the room
+      socket.on("user-joined", ({ socketId, userId, role }) => {
+        log("success", `Peer connected: ${userId} (${role}) via Socket: ${socketId}`);
+        // Refresh users list or add user manually
+        addUserToList({ socketId, userId, role });
+      });
+
+      // An active user left the room
+      socket.on("user-left", ({ socketId, userId }) => {
+        log("warning", `Peer left: ${userId || "Unknown User"} (Socket: ${socketId})`);
+        
+        // Remove from UI list
+        const item = document.getElementById(`user-${socketId}`);
+        if (item) {
+          item.remove();
+        }
+
+        if (userList.children.length === 0) {
+          userList.innerHTML = '<li class="empty-text">No other users in room</li>';
+        }
+      });
+
+      // WebRTC SDP Offer received
+      socket.on("offer", ({ senderSocketId, offer }) => {
+        log("info", `[WebRTC Signal Received] SDP OFFER from Socket: ${senderSocketId}`);
+        log("message", `├─ Type: ${offer.type}`);
+        log("message", `└─ SDP payload: ${offer.sdp.substring(0, 80)}...`);
+      });
+
+      // WebRTC SDP Answer received
+      socket.on("answer", ({ senderSocketId, answer }) => {
+        log("info", `[WebRTC Signal Received] SDP ANSWER from Socket: ${senderSocketId}`);
+        log("message", `├─ Type: ${answer.type}`);
+        log("message", `└─ SDP payload: ${answer.sdp.substring(0, 80)}...`);
+      });
+
+      // WebRTC ICE Candidate received
+      socket.on("ice-candidate", ({ senderSocketId, candidate }) => {
+        log("info", `[WebRTC Signal Received] ICE Candidate from Socket: ${senderSocketId}`);
+        log("message", `├─ Candidate: ${candidate.candidate.substring(0, 50)}...`);
+        log("message", `└─ sdpMid: ${candidate.sdpMid}, sdpMLineIndex: ${candidate.sdpMLineIndex}`);
+      });
+
+      // Handle generic errors from server
+      socket.on("error", ({ message }) => {
+        log("danger", `Server Error: ${message}`);
+      });
+
+      // Simulated WebRTC Actions
+      btnOffer.addEventListener("click", () => {
+        if (!currentRoom) return;
+        const simulatedOffer = {
+          type: "offer",
+          sdp: `v=0\r\no=alice 2890844526 2890842807 IN IP4 host.anywhere.com\r\ns=MediConnect WebRTC Video Call\r\nt=0 0\r\nc=IN IP4 host.anywhere.com\r\nm=video 51372 RTP/AVP 31\r\na=rtpmap:31 H261/90000`
+        };
+        log("info", `[WebRTC Signal Sent] Broadcasting SDP OFFER to room: ${currentRoom}`);
+        socket.emit("offer", { roomId: currentRoom, offer: simulatedOffer });
+      });
+
+      btnAnswer.addEventListener("click", () => {
+        if (!currentRoom) return;
+        const simulatedAnswer = {
+          type: "answer",
+          sdp: `v=0\r\no=bob 2890844526 2890842807 IN IP4 host.anywhere.com\r\ns=MediConnect WebRTC Video Call\r\nt=0 0\r\nc=IN IP4 host.anywhere.com\r\nm=video 51372 RTP/AVP 31\r\na=rtpmap:31 H261/90000`
+        };
+        log("info", `[WebRTC Signal Sent] Broadcasting SDP ANSWER to room: ${currentRoom}`);
+        socket.emit("answer", { roomId: currentRoom, answer: simulatedAnswer });
+      });
+
+      btnIce.addEventListener("click", () => {
+        if (!currentRoom) return;
+        const simulatedCandidate = {
+          candidate: "candidate:842165904 1 udp 16777215 192.168.1.100 51372 typ host",
+          sdpMid: "video",
+          sdpMLineIndex: 0
+        };
+        log("info", `[WebRTC Signal Sent] Broadcasting ICE Candidate to room: ${currentRoom}`);
+        socket.emit("ice-candidate", { roomId: currentRoom, candidate: simulatedCandidate });
+      });
+
+      // Custom message text chat signalling
+      btnSendChat.addEventListener("click", sendChatMessage);
+      chatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          sendChatMessage();
+        }
+      });
+
+      function sendChatMessage() {
+        const text = chatInput.value.trim();
+        if (!text || !currentRoom) return;
+
+        // We can package a text message in an "offer" payload just to send it as signals, or we can use generic relay.
+        // Let's bundle it inside a mock offer as text message just to test real-time relay, or we can use custom events
+        // since we didn't add chat-message, we can pack it as simulated data.
+        // Wait, the client is listening to offer/answer/ice-candidate.
+        // Let's send a simulated custom event. Even if server doesn't explicitly listen to 'chat-message', we can relay text!
+        // Oh wait! Socket.io allows relaying using the offer format:
+        const simulatedTextOffer = {
+          type: "text-signal",
+          sdp: `TEXT: ${text}`
+        };
+        log("info", `[Text Signal Sent] Broadcasting text signal: "${text}"`);
+        socket.emit("offer", { roomId: currentRoom, offer: simulatedTextOffer });
+        
+        chatInput.value = "";
+      }
+
+      clearLogBtn.addEventListener("click", () => {
+        terminalBody.innerHTML = "";
+      });
+
+      // Helper helper functions
+      function log(type, text) {
+        const timestamp = new Date().toLocaleTimeString();
+        const item = document.createElement("div");
+        item.classList.add("log-item");
+        
+        let typeClass = "log-info";
+        if (type === "success") typeClass = "log-success";
+        if (type === "warning") typeClass = "log-warning";
+        if (type === "danger") typeClass = "log-danger";
+        if (type === "message") typeClass = "log-message";
+
+        item.innerHTML = `<span class="log-time">[${timestamp}]</span> <span class="${typeClass}">${text}</span>`;
+        terminalBody.appendChild(item);
+        terminalBody.scrollTop = terminalBody.scrollHeight;
+      }
+
+      function addUserToList(user) {
+        // Remove empty state text if present
+        const empty = userList.querySelector(".empty-text");
+        if (empty) empty.remove();
+
+        // Check if item already exists
+        if (document.getElementById(`user-${user.socketId}`)) return;
+
+        const li = document.createElement("li");
+        li.id = `user-${user.socketId}`;
+        li.className = "user-item";
+        
+        const roleClass = user.role.toLowerCase() === "doctor" ? "role-doctor" : 
+                          user.role.toLowerCase() === "admin" ? "role-admin" : "role-patient";
+
+        li.innerHTML = `
+          <div class="user-item-info">
+            <span class="status-dot" style="background-color: var(--emerald); display:inline-block; width:0.375rem; height:0.375rem; margin-right:0.25rem;"></span>
+            <span>${user.userId} ${user.socketId === socket.id ? '(You)' : ''}</span>
+          </div>
+          <span class="user-item-role ${roleClass}">${user.role}</span>
+        `;
+        userList.appendChild(li);
+      }
+
+      function handleRoomLeftState() {
+        currentRoom = null;
+        joinBtn.disabled = false;
+        leaveBtn.disabled = true;
+        userIdInput.disabled = false;
+        userRoleInput.disabled = false;
+        roomIdInput.disabled = false;
+        actionPanel.style.display = "none";
+        
+        userList.innerHTML = '<li class="empty-text">Not in a room</li>';
+        log("info", "Left the room.");
+      }
+    });
+  </script>
+</body>
+</html>

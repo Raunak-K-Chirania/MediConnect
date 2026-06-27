@@ -23,8 +23,11 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/protected", require("./routes/protected"));
 app.use("/api/patients", require("./routes/patients"));
 app.use("/api/records", require("./routes/records"));
+app.use("/api/medical-records", require("./routes/records"));
 app.use("/medical-records", require("./routes/records"));
+app.use("/api/clinical-notes", require("./modules/clinical-notes/clinical-note.routes"));
 app.use("/clinical-notes", require("./modules/clinical-notes/clinical-note.routes"));
+app.use("/api", require("./modules/scheduling/scheduling.routes"));
 app.use("/", require("./modules/scheduling/scheduling.routes"));
 
 app.get("/", (req, res) => {

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Dependencies
 node_modules/
 /client/node_modules/
@@ -50,7 +49,4 @@ Thumbs.db
 # Postman / Workspace Configuration
 mediconnect_appointments.postman_collection.json
 
-=======
-# Postman Collection
-mediconnect_appointments.postman_collection.json
->>>>>>> 51405300a6cdff1a9a2799419cfa575ac0839b9b
+

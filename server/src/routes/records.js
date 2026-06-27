@@ -91,11 +91,26 @@ router.get("/patient/:patientId", auth, async (req, res, next) => {
   try {
     const { patientId } = req.params;
 
+    // Resolve patientId: it could be a Patient profile ID or a User ID
+    let actualPatientId = patientId;
+    let patientProfile = await Patient.findById(patientId);
+    if (!patientProfile) {
+      // Try finding by User ID
+      patientProfile = await Patient.findOne({ user: patientId });
+      if (patientProfile) {
+        actualPatientId = patientProfile._id;
+      }
+    }
+
+    if (!patientProfile) {
+      throw new ApiError(404, "Patient profile not found");
+    }
+
     // Authorization & Access Control checks
     if (req.user.role === "Patient") {
       // Find patient profile for current user
-      const patientProfile = await Patient.findOne({ user: req.user.id });
-      if (!patientProfile || patientProfile._id.toString() !== patientId) {
+      const currentUserPatientProfile = await Patient.findOne({ user: req.user.id });
+      if (!currentUserPatientProfile || currentUserPatientProfile._id.toString() !== actualPatientId.toString()) {
         throw new ApiError(403, "Forbidden: You can only access your own medical records.");
       }
     } else if (req.user.role === "Doctor") {
@@ -107,7 +122,7 @@ router.get("/patient/:patientId", auth, async (req, res, next) => {
 
       // Check if patient is assigned to this doctor
       const isAssigned = await Appointment.findOne({
-        patient: patientId,
+        patient: actualPatientId,
         doctor: doctorProfile._id,
       });
       if (!isAssigned) {
@@ -118,7 +133,7 @@ router.get("/patient/:patientId", auth, async (req, res, next) => {
     }
 
     // Find records, sort by visitDate descending, and populate doctor user info
-    const records = await MedicalRecord.find({ patientId, isDeleted: { $ne: true } })
+    const records = await MedicalRecord.find({ patientId: actualPatientId, isDeleted: { $ne: true } })
       .populate({
         path: "doctorId",
         populate: { path: "user", select: "name" },
