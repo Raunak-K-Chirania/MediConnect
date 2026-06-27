@@ -29,23 +29,23 @@ export interface CreateClinicalNoteInput {
 
 export const clinicalNoteService = {
   async getByPatient(patientId: string): Promise<ClinicalNote[]> {
-    const response = await axiosInstance.get<ClinicalNote[]>(`/clinical-notes/patient/${patientId}`);
-    return response.data;
+    const response = await axiosInstance.get<any>(`/clinical-notes/patient/${patientId}`);
+    return response.data?.data?.notes || [];
   },
 
   async getById(id: string): Promise<ClinicalNote> {
-    const response = await axiosInstance.get<ClinicalNote>(`/clinical-notes/${id}`);
-    return response.data;
+    const response = await axiosInstance.get<any>(`/clinical-notes/${id}`);
+    return response.data?.data || response.data;
   },
 
   async create(data: CreateClinicalNoteInput): Promise<ClinicalNote> {
-    const response = await axiosInstance.post<ClinicalNote>('/clinical-notes', data);
-    return response.data;
+    const response = await axiosInstance.post<any>('/clinical-notes', data);
+    return response.data?.data || response.data;
   },
 
   async update(id: string, data: Partial<CreateClinicalNoteInput>): Promise<ClinicalNote> {
-    const response = await axiosInstance.put<ClinicalNote>(`/clinical-notes/${id}`, data);
-    return response.data;
+    const response = await axiosInstance.put<any>(`/clinical-notes/${id}`, data);
+    return response.data?.data || response.data;
   },
 
   async delete(id: string): Promise<{ success: boolean; message: string }> {

@@ -33,7 +33,7 @@ router.put(
 router.get(
   "/doctor-availability/:doctorId",
   auth,
-  authorize(["Doctor", "Admin"]),
+  authorize(["Doctor", "Admin", "Patient"]),
   controller.getAvailability
 );
 

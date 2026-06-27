@@ -1,7 +1,6 @@
 node_modules/
 .env
 .env.local
-<<<<<<< HEAD
 .env.development.local
 .env.test.local
 .env.production.local
@@ -9,6 +8,3 @@ node_modules/
 *.env.*
 !*.env.example
 
-=======
-.env.example
->>>>>>> 51405300a6cdff1a9a2799419cfa575ac0839b9b
