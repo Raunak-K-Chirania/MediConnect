@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuthStore } from '../store/authStore';
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('summary');
 
@@ -507,27 +509,38 @@ export const PatientDashboard: React.FC = () => {
 
                       {/* Active actions */}
                       {(appt.status === 'pending' || appt.status === 'approved') && (
-                        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100">
-                          <button
-                            onClick={() => {
-                              setReschedulingAppt(appt);
-                              setRescheduleDate('');
-                              setRescheduleSlots([]);
-                              setSelectedRescheduleSlot('');
-                            }}
-                            className="py-2 text-center bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold rounded-xl text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
-                          >
-                            Reschedule
-                          </button>
-                          <button
-                            onClick={() => {
-                              setCancellingAppt(appt);
-                              setCancelReason('');
-                            }}
-                            className="py-2 text-center bg-red-50 hover:bg-red-100 border border-red-200 text-xs font-bold rounded-xl text-red-600 transition-colors cursor-pointer"
-                          >
-                            Cancel
-                          </button>
+                        <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
+                          {appt.status === 'approved' && appt.appointmentType === 'Online Video Consult' && (
+                            <button
+                              onClick={() => navigate(`/video-call/${appt._id}`)}
+                              className="w-full py-2.5 bg-linear-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 hover:shadow-lg hover:shadow-indigo-500/30 transition-all cursor-pointer"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              Join Video Consultation
+                            </button>
+                          )}
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => {
+                                setReschedulingAppt(appt);
+                                setRescheduleDate('');
+                                setRescheduleSlots([]);
+                                setSelectedRescheduleSlot('');
+                              }}
+                              className="py-2 text-center bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold rounded-xl text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
+                            >
+                              Reschedule
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCancellingAppt(appt);
+                                setCancelReason('');
+                              }}
+                              className="py-2 text-center bg-red-50 hover:bg-red-100 border border-red-200 text-xs font-bold rounded-xl text-red-600 transition-colors cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

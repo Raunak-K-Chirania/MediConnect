@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuthStore } from '../store/authStore';
@@ -11,10 +12,11 @@ import { clinicalNoteSchema, medicalRecordSchema } from '../schemas/validationSc
 import { 
   Calendar, FileText, Search, Clock, 
   AlertCircle, CheckCircle2, User, Stethoscope, 
-  Activity, Clipboard, Eye, X, Check, Trash2, Edit2, Plus, RefreshCw
+  Activity, Clipboard, Eye, X, Check, Trash2, Edit2, Plus, RefreshCw, Video
 } from 'lucide-react';
 
 export const DoctorDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('summary');
 
@@ -454,12 +456,23 @@ export const DoctorDashboard: React.FC = () => {
                               <Clock className="w-3.5 h-3.5 text-indigo-500" /> {appt.startTime} - {appt.endTime}
                             </p>
                           </div>
-                          <button
-                            onClick={() => handleComplete(appt)}
-                            className="px-2.5 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-colors cursor-pointer"
-                          >
-                            Complete
-                          </button>
+                          <div className="flex gap-2">
+                            {appt.appointmentType === 'Online Video Consult' && (
+                              <button
+                                onClick={() => navigate(`/video-call/${appt._id}`)}
+                                className="px-2.5 py-1 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                              >
+                                <Video className="w-3 h-3" />
+                                Call
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleComplete(appt)}
+                              className="px-2.5 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-colors cursor-pointer"
+                            >
+                              Complete
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -544,12 +557,23 @@ export const DoctorDashboard: React.FC = () => {
                           </>
                         )}
                         {appt.status === 'approved' && (
-                          <button
-                            onClick={() => handleComplete(appt)}
-                            className="w-full py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                          >
-                            Mark Completed & Consult
-                          </button>
+                          <div className="flex flex-col gap-2 w-full">
+                            {appt.appointmentType === 'Online Video Consult' && (
+                              <button
+                                onClick={() => navigate(`/video-call/${appt._id}`)}
+                                className="w-full py-2 bg-linear-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 text-white font-extrabold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 hover:shadow-lg hover:shadow-indigo-500/30 transition-all cursor-pointer"
+                              >
+                                <Video className="w-3.5 h-3.5" />
+                                Join Video Consultation
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleComplete(appt)}
+                              className="w-full py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-800 font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                            >
+                              Mark Completed & Consult
+                            </button>
+                          </div>
                         )}
                         {appt.status === 'completed' && (
                           <button
