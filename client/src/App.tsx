@@ -6,10 +6,7 @@ import Register from './pages/Register';
 import PatientDashboard from './pages/PatientDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
-import PatientDashboard from './pages/PatientDashboard';
-import DoctorDashboard from './pages/DoctorDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-
+import VideoCallPage from './pages/VideoCallPage';
 
 export const App: React.FC = () => {
   return (
@@ -54,6 +51,14 @@ export const App: React.FC = () => {
         element={
           <ProtectedRoute allowedRoles={['Admin']}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/video-call/:roomId"
+        element={
+          <ProtectedRoute allowedRoles={['Patient', 'Doctor']}>
+            <VideoCallPage />
           </ProtectedRoute>
         }
       />
