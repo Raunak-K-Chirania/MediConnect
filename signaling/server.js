@@ -146,6 +146,24 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 5.5. Peer Media State Relay (Mute/Camera control)
+  socket.on("peer-state", ({ roomId, targetSocketId, audioEnabled, videoEnabled }) => {
+    console.log(`[Signaling] Peer state update from ${socket.id}: audioEnabled=${audioEnabled}, videoEnabled=${videoEnabled}`);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("peer-state", {
+        senderSocketId: socket.id,
+        audioEnabled,
+        videoEnabled,
+      });
+    } else if (roomId) {
+      socket.to(roomId).emit("peer-state", {
+        senderSocketId: socket.id,
+        audioEnabled,
+        videoEnabled,
+      });
+    }
+  });
+
   // 6. Handle Disconnection
   socket.on("disconnecting", () => {
     // Notify all rooms the socket was in
