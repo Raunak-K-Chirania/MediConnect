@@ -16,6 +16,8 @@ import {
   User,
   Activity,
   Wifi,
+  WifiOff,
+  ServerCrash,
   Clipboard,
   History,
   Info,
@@ -36,7 +38,10 @@ export const VideoCallPage: React.FC = () => {
   const { user } = useAuthStore();
 
   // WebRTC & Connection states
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'disconnected' | 'failed'>('idle');
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'reconnecting'>('idle');
+  const [signalingStatus, setSignalingStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [peerInfo, setPeerInfo] = useState<{ userId: string; role: string } | null>(null);
@@ -77,6 +82,8 @@ export const VideoCallPage: React.FC = () => {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const targetSocketIdRef = useRef<string | null>(null);
+  const isCallerRef = useRef<boolean>(false);
+  const iceRestartTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const SIGNALING_URL = import.meta.env.VITE_SIGNALING_URL || 'http://localhost:5001';
 
@@ -163,14 +170,40 @@ export const VideoCallPage: React.FC = () => {
       } catch (mediaErr: any) {
         console.warn('[WebRTC Client] Full A/V acquisition failed. Attempting audio-only fallback...', mediaErr);
         
-        // Graceful fallback to audio-only if camera unavailable or denied
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: false,
-          audio: true
-        });
-        
-        setVideoEnabled(false);
-        setErrorMessage('Camera blocked or unavailable. Joining with audio only.');
+        let customError = 'Camera blocked or unavailable. Joining with audio only.';
+        if (mediaErr.name === 'NotAllowedError' || mediaErr.name === 'PermissionDeniedError') {
+          customError = 'Camera access was denied in browser. Joining with audio only.';
+        } else if (mediaErr.name === 'NotReadableError' || mediaErr.name === 'TrackStartError') {
+          customError = 'Camera is already in use by another program. Joining with audio only.';
+        } else if (mediaErr.name === 'NotFoundError' || mediaErr.name === 'DevicesNotFoundError') {
+          customError = 'No camera hardware found on this device. Joining with audio only.';
+        }
+
+        try {
+          // Graceful fallback to audio-only if camera unavailable or denied
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: true
+          });
+          setVideoEnabled(false);
+          setErrorMessage(customError);
+        } catch (audioErr: any) {
+          console.error('[WebRTC Client] Both audio and video acquisition failed:', audioErr);
+          
+          let finalErrorMsg = 'Could not access microphone or camera. Please ensure permissions are granted in your browser settings.';
+          if (audioErr.name === 'NotAllowedError' || audioErr.name === 'PermissionDeniedError') {
+            finalErrorMsg = 'Microphone and camera permissions were denied. Please check your browser address bar and retry.';
+          } else if (audioErr.name === 'NotReadableError' || audioErr.name === 'TrackStartError') {
+            finalErrorMsg = 'Microphone and camera are currently in use by another application. Please close it and retry.';
+          } else if (audioErr.name === 'NotFoundError' || audioErr.name === 'DevicesNotFoundError') {
+            finalErrorMsg = 'No microphone or camera devices were found on this computer. Please connect hardware and retry.';
+          }
+
+          setErrorMessage(finalErrorMsg);
+          setPermissionTrouble(true);
+          setConnectionStatus('failed');
+          return;
+        }
       }
 
       localStreamRef.current = stream;
@@ -181,12 +214,25 @@ export const VideoCallPage: React.FC = () => {
       // Initialize Signaling Socket
       const socket = io(SIGNALING_URL, {
         transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 15000,
         forceNew: true
       });
       socketRef.current = socket;
 
       socket.on('connect', () => {
         console.log('[WebRTC Client] Socket connected:', socket.id);
+        setSignalingStatus('connected');
+        
+        // If we are reconnecting after a drop, clear old peer connection
+        if (pcRef.current) {
+          console.log('[WebRTC Client] Signaling reconnected. Clearing old peer connection for fresh negotiation.');
+          cleanPeerConnection();
+        }
+
         socket.emit('join-room', {
           roomId,
           userId: user?.id,
@@ -272,13 +318,26 @@ export const VideoCallPage: React.FC = () => {
         setErrorMessage(message);
       });
 
-      socket.on('disconnect', () => {
-        console.log('[WebRTC Client] Socket disconnected');
-        setConnectionStatus('disconnected');
+      socket.on('disconnect', (reason) => {
+        console.log('[WebRTC Client] Socket disconnected:', reason);
+        setSignalingStatus('disconnected');
+        if (reason !== 'io client disconnect') {
+          setConnectionStatus('reconnecting');
+        }
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('[WebRTC Client] Socket connection error:', error);
+        setSignalingStatus('connecting');
+      });
+
+      socket.on('reconnect_attempt', (attempt) => {
+        console.log('[WebRTC Client] Attempting to reconnect signaling server. Attempt #:', attempt);
+        setSignalingStatus('connecting');
       });
 
     } catch (err: any) {
-      console.error('[WebRTC Client] Media acquisition failed completely:', err);
+      console.error('[WebRTC Client] Initialization failed:', err);
       setErrorMessage(
         'Could not access microphone or camera. Please ensure permissions are granted in your browser settings.'
       );
@@ -299,6 +358,37 @@ export const VideoCallPage: React.FC = () => {
       cleanupAll();
     };
   }, [roomId, user]);
+
+  // Monitor browser network connection (online/offline)
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[Network] Browser went online');
+      setIsOffline(false);
+      setErrorMessage(null);
+      
+      // If socket.io is disconnected, force it to try reconnecting
+      if (socketRef.current && !socketRef.current.connected) {
+        socketRef.current.connect();
+      }
+    };
+
+    const handleOffline = () => {
+      console.log('[Network] Browser went offline');
+      setIsOffline(true);
+      setErrorMessage('You are offline. Please check your internet connection.');
+      
+      // Force connection status to failed while offline
+      setConnectionStatus('failed');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // 3. WebRTC latency monitoring (P2P Ping)
   useEffect(() => {
@@ -324,10 +414,42 @@ export const VideoCallPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [connectionStatus]);
 
+  // Initiate ICE restart sequence
+  const initiateIceRestart = async () => {
+    if (!pcRef.current || !targetSocketIdRef.current) {
+      console.warn('[WebRTC Client] Cannot restart ICE: PeerConnection or Target Socket ID missing');
+      return;
+    }
+    console.log('[WebRTC Client] Initiating ICE restart...');
+    setConnectionStatus('reconnecting');
+    try {
+      const offer = await pcRef.current.createOffer({ iceRestart: true });
+      await pcRef.current.setLocalDescription(offer);
+      
+      if (socketRef.current) {
+        socketRef.current.emit('offer', {
+          roomId,
+          targetSocketId: targetSocketIdRef.current,
+          offer
+        });
+      }
+    } catch (err) {
+      console.error('[WebRTC Client] ICE restart SDP creation failed. Attempting full connection recreation.', err);
+      if (targetSocketIdRef.current) {
+        await initiateCall(targetSocketIdRef.current);
+      }
+    }
+  };
+
   // Create PeerConnection
   const createPeerConnection = (targetSocketId: string): RTCPeerConnection => {
     if (pcRef.current) {
-      return pcRef.current;
+      if (targetSocketIdRef.current !== targetSocketId) {
+        console.log('[WebRTC Client] Target socket ID changed from', targetSocketIdRef.current, 'to', targetSocketId, '. Recreating PeerConnection.');
+        cleanPeerConnection();
+      } else {
+        return pcRef.current;
+      }
     }
 
     const pc = new RTCPeerConnection({
@@ -363,16 +485,44 @@ export const VideoCallPage: React.FC = () => {
       }
     };
 
-    pc.onconnectionstatechange = () => {
-      console.log('[WebRTC Client] Peer connection state:', pc.connectionState);
-      if (pc.connectionState === 'connected') {
+    const handleStateChange = () => {
+      if (!pc) return;
+      const connState = pc.connectionState;
+      const iceState = pc.iceConnectionState;
+      console.log(`[WebRTC Client] connectionState: ${connState}, iceConnectionState: ${iceState}`);
+
+      if (connState === 'connected' || iceState === 'connected') {
         setConnectionStatus('connected');
-      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
-        setConnectionStatus('disconnected');
-      } else if (pc.connectionState === 'failed') {
+        if (iceRestartTimerRef.current) {
+          clearTimeout(iceRestartTimerRef.current);
+          iceRestartTimerRef.current = null;
+        }
+        setErrorMessage(null);
+      } else if (connState === 'disconnected' || iceState === 'disconnected') {
+        setConnectionStatus('reconnecting');
+        if (!iceRestartTimerRef.current) {
+          iceRestartTimerRef.current = setTimeout(() => {
+            if (pcRef.current && (pcRef.current.connectionState === 'disconnected' || pcRef.current.iceConnectionState === 'disconnected')) {
+              console.log('[WebRTC Client] Connection remains disconnected. Triggering ICE restart.');
+              if (isCallerRef.current) {
+                initiateIceRestart();
+              }
+            }
+            iceRestartTimerRef.current = null;
+          }, 4000);
+        }
+      } else if (connState === 'failed' || iceState === 'failed') {
         setConnectionStatus('failed');
+        if (isCallerRef.current) {
+          initiateIceRestart();
+        }
+      } else if (connState === 'closed' || iceState === 'closed') {
+        setConnectionStatus('disconnected');
       }
     };
+
+    pc.onconnectionstatechange = handleStateChange;
+    pc.oniceconnectionstatechange = handleStateChange;
 
     pcRef.current = pc;
     return pc;
@@ -380,6 +530,7 @@ export const VideoCallPage: React.FC = () => {
 
   const initiateCall = async (targetSocketId: string) => {
     console.log('[WebRTC Client] Initiating call to socket:', targetSocketId);
+    isCallerRef.current = true;
     try {
       const pc = createPeerConnection(targetSocketId);
       const offer = await pc.createOffer();
@@ -400,6 +551,7 @@ export const VideoCallPage: React.FC = () => {
 
   const handleReceivedOffer = async (senderSocketId: string, offer: RTCSessionDescriptionInit) => {
     console.log('[WebRTC Client] Handling offer from socket:', senderSocketId);
+    isCallerRef.current = false;
     try {
       const pc = createPeerConnection(senderSocketId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -466,10 +618,26 @@ export const VideoCallPage: React.FC = () => {
 
   // Cleanup helper
   const cleanPeerConnection = () => {
+    if (iceRestartTimerRef.current) {
+      clearTimeout(iceRestartTimerRef.current);
+      iceRestartTimerRef.current = null;
+    }
     if (pcRef.current) {
+      console.log('[WebRTC Client] Cleaning up peer connection event handlers and closing connection');
       pcRef.current.onicecandidate = null;
       pcRef.current.ontrack = null;
       pcRef.current.onconnectionstatechange = null;
+      pcRef.current.oniceconnectionstatechange = null;
+      pcRef.current.onsignalingstatechange = null;
+      
+      try {
+        pcRef.current.getTransceivers().forEach((transceiver) => {
+          if (transceiver.stop) transceiver.stop();
+        });
+      } catch (err) {
+        console.warn('[WebRTC Client] Error stopping transceivers:', err);
+      }
+      
       pcRef.current.close();
       pcRef.current = null;
     }
@@ -480,6 +648,7 @@ export const VideoCallPage: React.FC = () => {
 
   const cleanupAll = () => {
     cleanPeerConnection();
+    isCallerRef.current = false;
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
@@ -628,6 +797,9 @@ export const VideoCallPage: React.FC = () => {
           <AlertCircle className="w-10 h-10 text-rose-400 animate-bounce" />
           <div>
             <h3 className="font-extrabold text-sm text-rose-300">Browser Media Access Required</h3>
+            <p className="text-xs text-rose-450 mt-1 font-semibold">
+              Error Details: {errorMessage}
+            </p>
             <p className="text-xs text-rose-400/90 mt-1.5 leading-relaxed max-w-lg">
               To join this secure consultation room, you must allow MediConnect to access your microphone and webcam. Check your browser address bar to grant permissions, then click retry.
             </p>
@@ -677,24 +849,94 @@ export const VideoCallPage: React.FC = () => {
               </div>
             )}
 
-            {/* Fallback when remote participant has not connected yet */}
-            {connectionStatus !== 'connected' && !permissionTrouble && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/95 text-center p-8">
-                <div className="w-20 h-20 rounded-full bg-slate-800/80 flex items-center justify-center border border-slate-700/50 shadow-inner mb-5 animate-pulse">
-                  {user?.role === 'Patient' ? (
-                    <Activity className="w-8 h-8 text-cyan-400" />
-                  ) : (
-                    <User className="w-8 h-8 text-indigo-400" />
-                  )}
-                </div>
-                <h3 className="font-extrabold text-slate-200 text-sm">
-                  {peerInfo 
-                    ? `Establishing secure connection with ${peerInfo.role === 'Doctor' ? 'Dr. ' + peerInfo.userId : 'Patient'}...`
-                    : 'Waiting for other participant to join...'}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1.5 max-w-sm leading-relaxed">
-                  Once they enter the consultation room, a secure peer-to-peer audio and video stream will initiate immediately.
-                </p>
+            {/* Connection States Overlays */}
+            {(connectionStatus !== 'connected' || isOffline || signalingStatus !== 'connected') && !permissionTrouble && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/90 p-8 text-center backdrop-blur-sm">
+                {isOffline ? (
+                  <div className="flex flex-col items-center max-w-sm">
+                    <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mb-4">
+                      <WifiOff className="w-8 h-8 text-rose-400 animate-pulse" />
+                    </div>
+                    <h3 className="font-extrabold text-slate-100 text-sm">You are Offline</h3>
+                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                      Your internet connection was lost. Please check your Wi-Fi or network connection. MediConnect will automatically try to reconnect when you are back online.
+                    </p>
+                  </div>
+                ) : signalingStatus !== 'connected' ? (
+                  <div className="flex flex-col items-center max-w-sm">
+                    <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4">
+                      <ServerCrash className="w-8 h-8 text-amber-400 animate-pulse" />
+                    </div>
+                    <h3 className="font-extrabold text-slate-100 text-sm">Signaling Interrupted</h3>
+                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                      Lost secure connection to the matching server. Reconnecting to the consultation system...
+                    </p>
+                  </div>
+                ) : connectionStatus === 'reconnecting' ? (
+                  <div className="flex flex-col items-center max-w-sm">
+                    <div className="w-16 h-16 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-4">
+                      <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                    </div>
+                    <h3 className="font-extrabold text-slate-100 text-sm">Reconnecting Stream...</h3>
+                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                      The call connection was temporarily lost. Attempting to restore secure connection with {peerInfo?.role === 'Doctor' ? getDoctorNameFormatted() : 'Patient'}...
+                    </p>
+                  </div>
+                ) : connectionStatus === 'failed' ? (
+                  <div className="flex flex-col items-center max-w-sm">
+                    <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mb-4">
+                      <AlertCircle className="w-8 h-8 text-rose-450" />
+                    </div>
+                    <h3 className="font-extrabold text-slate-100 text-sm">Connection Failed</h3>
+                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                      Could not establish or maintain audio/video stream connection.
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (targetSocketIdRef.current) {
+                          initiateCall(targetSocketIdRef.current);
+                        } else {
+                          initMediaAndSignaling();
+                        }
+                      }}
+                      className="mt-4 px-5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                    >
+                      Retry Call Connection
+                    </button>
+                  </div>
+                ) : connectionStatus === 'disconnected' && peerInfo ? (
+                  <div className="flex flex-col items-center max-w-sm">
+                    <div className="w-16 h-16 rounded-full bg-slate-850 border border-slate-700/50 flex items-center justify-center mb-4 animate-pulse">
+                      {peerInfo.role === 'Doctor' ? (
+                        <Activity className="w-8 h-8 text-cyan-400" />
+                      ) : (
+                        <User className="w-8 h-8 text-indigo-400" />
+                      )}
+                    </div>
+                    <h3 className="font-extrabold text-slate-100 text-sm">Participant Disconnected</h3>
+                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                      {peerInfo.role === 'Doctor' ? getDoctorNameFormatted() : 'Patient'} has disconnected. Waiting for them to rejoin the room...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center max-w-sm">
+                    <div className="w-20 h-20 rounded-full bg-slate-800/80 flex items-center justify-center border border-slate-700/50 shadow-inner mb-5 animate-pulse">
+                      {user?.role === 'Patient' ? (
+                        <Activity className="w-8 h-8 text-cyan-400" />
+                      ) : (
+                        <User className="w-8 h-8 text-indigo-400" />
+                      )}
+                    </div>
+                    <h3 className="font-extrabold text-slate-200 text-sm">
+                      {peerInfo 
+                        ? `Establishing secure connection with ${peerInfo.role === 'Doctor' ? 'Dr. ' + peerInfo.userId : 'Patient'}...`
+                        : 'Waiting for other participant to join...'}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-1.5 max-w-sm leading-relaxed">
+                      Once they enter the consultation room, a secure peer-to-peer audio and video stream will initiate immediately.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
