@@ -118,4 +118,11 @@ router.get(
   controller.getAppointmentById
 );
 
+router.get(
+  "/appointments/:id/meeting-token",
+  auth,
+  authorize(["Patient", "Doctor", "Admin"]),
+  controller.getMeetingToken
+);
+
 module.exports = router;

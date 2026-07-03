@@ -91,4 +91,11 @@ export const appointmentService = {
     const response = await axiosInstance.get<{ success: boolean; data: Appointment }>(`/appointments/${id}`);
     return response.data;
   },
+
+  async getMeetingToken(id: string): Promise<{ success: boolean; data: { token: string; roomId: string } }> {
+    const response = await axiosInstance.get<{ success: boolean; data: { token: string; roomId: string } }>(
+      `/appointments/${id}/meeting-token`
+    );
+    return response.data;
+  },
 };

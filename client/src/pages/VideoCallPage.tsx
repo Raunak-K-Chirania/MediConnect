@@ -83,7 +83,7 @@ export const VideoCallPage: React.FC = () => {
   const localStreamRef = useRef<MediaStream | null>(null);
   const targetSocketIdRef = useRef<string | null>(null);
   const isCallerRef = useRef<boolean>(false);
-  const iceRestartTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const iceRestartTimerRef = useRef<any | null>(null);
 
   const SIGNALING_URL = import.meta.env.VITE_SIGNALING_URL || 'http://localhost:5001';
 
@@ -155,6 +155,23 @@ export const VideoCallPage: React.FC = () => {
       setPermissionTrouble(false);
       setErrorMessage(null);
       setConnectionStatus('connecting');
+
+      // First validate appointment and acquire a cryptographically secure room token
+      let token = '';
+      try {
+        const tokenRes = await appointmentService.getMeetingToken(roomId!);
+        if (tokenRes.success && tokenRes.data && tokenRes.data.token) {
+          token = tokenRes.data.token;
+        } else {
+          throw new Error('Could not acquire room token.');
+        }
+      } catch (tokenErr: any) {
+        console.error('[WebRTC Client] Room token validation failed:', tokenErr);
+        const errMsg = tokenErr?.response?.data?.error || 'Access denied: You are not authorized or the consultation room is closed.';
+        setErrorMessage(errMsg);
+        setConnectionStatus('failed');
+        return;
+      }
 
       // Request camera and microphone permissions
       let stream: MediaStream;
@@ -236,7 +253,8 @@ export const VideoCallPage: React.FC = () => {
         socket.emit('join-room', {
           roomId,
           userId: user?.id,
-          role: user?.role
+          role: user?.role,
+          token
         });
 
         // Broadcast initial stream settings
@@ -316,6 +334,10 @@ export const VideoCallPage: React.FC = () => {
       socket.on('error', ({ message }) => {
         console.error('[WebRTC Client] Signaling server error:', message);
         setErrorMessage(message);
+        setConnectionStatus('failed');
+        if (socket) {
+          socket.disconnect();
+        }
       });
 
       socket.on('disconnect', (reason) => {
