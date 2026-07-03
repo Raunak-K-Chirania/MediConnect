@@ -4,6 +4,9 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const path = require("path");
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
+
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -32,9 +35,38 @@ io.on("connection", (socket) => {
   console.log(`[Signaling] Socket connected: ${socket.id}`);
 
   // 1. Join Room Event
-  socket.on("join-room", ({ roomId, userId, role }) => {
-    if (!roomId || !userId) {
-      socket.emit("error", { message: "Room ID and User ID are required." });
+  socket.on("join-room", ({ roomId, userId, role, token }) => {
+    if (!roomId || !userId || !token) {
+      socket.emit("error", { message: "Room ID, User ID, and room token are required." });
+      return;
+    }
+
+    try {
+      // Cryptographically verify the token
+      const decoded = jwt.verify(token, JWT_SECRET);
+
+      // Verify that the token claims match the client parameters
+      if (decoded.roomId !== roomId) {
+        socket.emit("error", { message: "Access denied: Room ID mismatch." });
+        return;
+      }
+      if (decoded.userId !== userId) {
+        socket.emit("error", { message: "Access denied: User ID mismatch." });
+        return;
+      }
+      if (decoded.role !== role) {
+        socket.emit("error", { message: "Access denied: Role mismatch." });
+        return;
+      }
+
+      // Restrict room access to Doctor, Patient, and Admin only
+      if (decoded.role !== "Doctor" && decoded.role !== "Patient" && decoded.role !== "Admin") {
+        socket.emit("error", { message: "Access denied: Unauthorized role for consultation rooms." });
+        return;
+      }
+    } catch (err) {
+      console.error(`[Signaling] Token verification failed for user ${userId} in room ${roomId}:`, err.message);
+      socket.emit("error", { message: "Access denied: Invalid or expired room token." });
       return;
     }
 

@@ -5,6 +5,8 @@ const Doctor = require("../../models/Doctor");
 const schedulingService = require("./scheduling.service");
 const ApiError = require("../../utils/ApiError");
 const { successResponse } = require("../../utils/apiResponse");
+const jwt = require("jsonwebtoken");
+
 
 // Create Doctor Availability
 const createAvailability = async (req, res, next) => {
@@ -566,6 +568,81 @@ const getUpcomingAppointments = async (req, res, next) => {
   }
 };
 
+// Get Meeting Token for secure video consultation room
+const getMeetingToken = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const appointment = await Appointment.findById(id);
+
+    if (!appointment) {
+      throw new ApiError(404, "Appointment not found");
+    }
+
+    // RBAC: Patient (own), Doctor (own), Admin (any)
+    if (req.user.role === "Patient" && appointment.patientId.toString() !== req.user.id.toString()) {
+      throw new ApiError(403, "Access denied. You cannot access this appointment's meeting token.");
+    }
+    if (req.user.role === "Doctor" && appointment.doctorId.toString() !== req.user.id.toString()) {
+      throw new ApiError(403, "Access denied. You cannot access this appointment's meeting token.");
+    }
+
+    // Status verification: must be approved or completed (or Scheduled/Completed)
+    const validStatuses = ["approved", "completed", "Scheduled", "Completed"];
+    if (!validStatuses.includes(appointment.status)) {
+      throw new ApiError(400, "Meeting room access is not allowed for this appointment status.");
+    }
+
+    // Time validation: allow room access only during scheduled consultation time
+    const now = new Date();
+    const year = appointment.appointmentDate.getUTCFullYear();
+    const month = appointment.appointmentDate.getUTCMonth();
+    const date = appointment.appointmentDate.getUTCDate();
+
+    const [startHours, startMinutes] = appointment.startTime.split(":").map(Number);
+    const [endHours, endMinutes] = appointment.endTime.split(":").map(Number);
+
+    const scheduledStart = new Date(year, month, date, startHours, startMinutes, 0, 0);
+    const scheduledEnd = new Date(year, month, date, endHours, endMinutes, 0, 0);
+
+    const earlyBuffer = 10 * 60 * 1000; // 10 minutes early join allowed
+    const lateBuffer = 30 * 60 * 1000;  // 30 minutes late stay allowed
+
+    const allowedStartTime = new Date(scheduledStart.getTime() - earlyBuffer);
+    const allowedEndTime = new Date(scheduledEnd.getTime() + lateBuffer);
+
+    if (now < allowedStartTime) {
+      throw new ApiError(400, "Access denied: The consultation room is not open yet. You can join up to 10 minutes early.");
+    }
+    if (now > allowedEndTime) {
+      throw new ApiError(400, "Access denied: The consultation room has closed.");
+    }
+
+    // Generate unique cryptographically secure room token
+    const payload = {
+      roomId: appointment._id.toString(),
+      userId: req.user.id.toString(),
+      role: req.user.role,
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET || "fallback_secret", {
+      expiresIn: "1h", // Token valid for 1 hour
+    });
+
+    req.auditLogData = {
+      action: "MEETING_TOKEN_GENERATED",
+      resourceType: "Appointment",
+      resourceId: appointment._id,
+    };
+
+    return successResponse(res, 200, "Meeting token generated successfully", {
+      token,
+      roomId: appointment._id.toString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createAvailability,
   updateAvailability,
@@ -581,4 +658,5 @@ module.exports = {
   getPatientAppointments,
   getDoctorAppointments,
   getUpcomingAppointments,
+  getMeetingToken,
 };
