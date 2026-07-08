@@ -84,6 +84,8 @@ export const VideoCallPage: React.FC = () => {
   const targetSocketIdRef = useRef<string | null>(null);
   const isCallerRef = useRef<boolean>(false);
   const iceRestartTimerRef = useRef<any | null>(null);
+  const iceCandidatesQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const [lastSavedSoap, setLastSavedSoap] = useState({ subjective: '', objective: '', assessment: '', plan: '' });
 
   const SIGNALING_URL = import.meta.env.VITE_SIGNALING_URL || 'http://localhost:5001';
 
@@ -123,6 +125,12 @@ export const VideoCallPage: React.FC = () => {
                 setObjective(existingNote.objectiveFindings || '');
                 setAssessment(existingNote.assessment || '');
                 setPlan(existingNote.plan || '');
+                setLastSavedSoap({
+                  subjective: existingNote.subjectiveFindings || '',
+                  objective: existingNote.objectiveFindings || '',
+                  assessment: existingNote.assessment || '',
+                  plan: existingNote.plan || ''
+                });
               }
             } catch (err) {
               console.warn('[Clinical Console] Failed to fetch clinical notes history:', err);
@@ -298,17 +306,27 @@ export const VideoCallPage: React.FC = () => {
       socket.on('answer', async ({ senderSocketId, answer }) => {
         console.log('[WebRTC Client] Answer received from:', senderSocketId);
         if (pcRef.current) {
-          await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-          setConnectionStatus('connected');
+          try {
+            await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+            setConnectionStatus('connected');
+            await flushIceCandidates();
+          } catch (err) {
+            console.error('[WebRTC Client] Error setting remote description for answer:', err);
+          }
         }
       });
 
       socket.on('ice-candidate', async ({ senderSocketId, candidate }) => {
         if (pcRef.current) {
-          try {
-            await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch (err) {
-            console.error('[WebRTC Client] Error adding ice candidate:', err);
+          if (pcRef.current.remoteDescription && pcRef.current.remoteDescription.type) {
+            try {
+              await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (err) {
+              console.error('[WebRTC Client] Error adding ice candidate:', err);
+            }
+          } else {
+            console.log('[WebRTC Client] Remote description not set yet. Queueing ICE candidate.');
+            iceCandidatesQueueRef.current.push(candidate);
           }
         }
       });
@@ -436,6 +454,62 @@ export const VideoCallPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [connectionStatus]);
 
+  // Optimize RTCRtpSender parameters (max bitrate & priority)
+  const optimizeVideoSender = (pc: RTCPeerConnection) => {
+    const senders = pc.getSenders();
+    senders.forEach((sender) => {
+      if (sender.track && sender.track.kind === 'video') {
+        try {
+          const parameters = sender.getParameters();
+          if (!parameters.encodings) {
+            parameters.encodings = [{}];
+          }
+          // Set maximum video encoding bitrate to 1 Mbps for light network load
+          parameters.encodings[0].maxBitrate = 1000000;
+          // Set network priority to medium for video
+          parameters.encodings[0].networkPriority = 'medium';
+          sender.setParameters(parameters).then(() => {
+            console.log('[WebRTC Client] Successfully optimized video sender parameters');
+          }).catch(err => {
+            console.warn('[WebRTC Client] Failed to set video sender parameters:', err);
+          });
+        } catch (e) {
+          console.warn('[WebRTC Client] Error getting/setting video sender parameters:', e);
+        }
+      } else if (sender.track && sender.track.kind === 'audio') {
+        try {
+          const parameters = sender.getParameters();
+          if (!parameters.encodings) {
+            parameters.encodings = [{}];
+          }
+          // Set high network priority for audio to prioritize voice packets over video
+          parameters.encodings[0].networkPriority = 'high';
+          sender.setParameters(parameters).catch(err => {
+            console.warn('[WebRTC Client] Failed to set audio sender parameters:', err);
+          });
+        } catch (e) {
+          console.warn('[WebRTC Client] Error setting audio sender parameters:', e);
+        }
+      }
+    });
+  };
+
+  // Flush queued ICE candidates
+  const flushIceCandidates = async () => {
+    if (!pcRef.current) return;
+    console.log(`[WebRTC Client] Flushing ${iceCandidatesQueueRef.current.length} queued ICE candidates`);
+    while (iceCandidatesQueueRef.current.length > 0) {
+      const candidate = iceCandidatesQueueRef.current.shift();
+      if (candidate) {
+        try {
+          await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.error('[WebRTC Client] Error adding queued ice candidate:', err);
+        }
+      }
+    }
+  };
+
   // Initiate ICE restart sequence
   const initiateIceRestart = async () => {
     if (!pcRef.current || !targetSocketIdRef.current) {
@@ -487,6 +561,8 @@ export const VideoCallPage: React.FC = () => {
       localStreamRef.current.getTracks().forEach((track) => {
         pc.addTrack(track, localStreamRef.current!);
       });
+      // Set initial bitrate constraints and track priorities
+      optimizeVideoSender(pc);
     }
 
     pc.ontrack = (event) => {
@@ -520,6 +596,8 @@ export const VideoCallPage: React.FC = () => {
           iceRestartTimerRef.current = null;
         }
         setErrorMessage(null);
+        // Optimize video sender parameters when connection state becomes connected
+        optimizeVideoSender(pc);
       } else if (connState === 'disconnected' || iceState === 'disconnected') {
         setConnectionStatus('reconnecting');
         if (!iceRestartTimerRef.current) {
@@ -577,6 +655,7 @@ export const VideoCallPage: React.FC = () => {
     try {
       const pc = createPeerConnection(senderSocketId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await flushIceCandidates();
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -634,12 +713,15 @@ export const VideoCallPage: React.FC = () => {
             videoEnabled: newState
           });
         }
+      } else {
+        alert("No camera device was detected or camera access was blocked when joining the call.");
       }
     }
   };
 
   // Cleanup helper
   const cleanPeerConnection = () => {
+    iceCandidatesQueueRef.current = [];
     if (iceRestartTimerRef.current) {
       clearTimeout(iceRestartTimerRef.current);
       iceRestartTimerRef.current = null;
@@ -675,6 +757,9 @@ export const VideoCallPage: React.FC = () => {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
     }
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
     if (socketRef.current) {
       socketRef.current.emit('leave-room');
       socketRef.current.disconnect();
@@ -683,6 +768,20 @@ export const VideoCallPage: React.FC = () => {
   };
 
   const handleHangUp = () => {
+    if (user?.role === 'Doctor') {
+      const hasUnsavedSoap = 
+        subjective !== lastSavedSoap.subjective ||
+        objective !== lastSavedSoap.objective ||
+        assessment !== lastSavedSoap.assessment ||
+        plan !== lastSavedSoap.plan;
+      if (hasUnsavedSoap) {
+        const confirmHangUp = window.confirm(
+          "You have unsaved changes in your SOAP clinical note. Leaving now will discard these changes. Are you sure you want to exit the consultation?"
+        );
+        if (!confirmHangUp) return;
+      }
+    }
+
     cleanupAll();
     const dashboardPath = user?.role === 'Doctor' ? '/doctor/dashboard' : '/patient/dashboard';
     navigate(dashboardPath);
@@ -721,6 +820,12 @@ export const VideoCallPage: React.FC = () => {
         const note = await clinicalNoteService.create(payload);
         setExistingNoteId(note._id);
       }
+      setLastSavedSoap({
+        subjective,
+        objective,
+        assessment,
+        plan
+      });
       
       setNoteSaveSuccess(true);
       setTimeout(() => setNoteSaveSuccess(false), 3050);
@@ -884,7 +989,39 @@ export const VideoCallPage: React.FC = () => {
                       Your internet connection was lost. Please check your Wi-Fi or network connection. MediConnect will automatically try to reconnect when you are back online.
                     </p>
                   </div>
-                ) : signalingStatus !== 'connected' ? (
+                ) : errorMessage && (connectionStatus === 'failed' || connectionStatus === 'idle') ? (
+                  <div className="flex flex-col items-center max-w-sm">
+                    <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mb-4">
+                      <AlertCircle className="w-8 h-8 text-rose-400" />
+                    </div>
+                    <h3 className="font-extrabold text-slate-100 text-sm">Access Denied / Connection Failed</h3>
+                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                      {errorMessage}
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (targetSocketIdRef.current) {
+                          initiateCall(targetSocketIdRef.current);
+                        } else {
+                          initMediaAndSignaling();
+                        }
+                      }}
+                      className="mt-4 px-5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                    >
+                      Retry Consultation Connection
+                    </button>
+                  </div>
+                ) : signalingStatus === 'connecting' && connectionStatus !== 'connected' ? (
+                  <div className="flex flex-col items-center max-w-sm">
+                    <div className="w-16 h-16 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-4">
+                      <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                    </div>
+                    <h3 className="font-extrabold text-slate-100 text-sm">Initializing Telehealth...</h3>
+                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                      Connecting to secure matching signaling server...
+                    </p>
+                  </div>
+                ) : signalingStatus === 'disconnected' ? (
                   <div className="flex flex-col items-center max-w-sm">
                     <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4">
                       <ServerCrash className="w-8 h-8 text-amber-400 animate-pulse" />
