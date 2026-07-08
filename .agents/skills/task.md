@@ -1,9 +1,0 @@
-- `[x]` Install `jsonwebtoken` in the signaling server
-- `[x]` Configure `JWT_SECRET` in signaling environment `.env`
-- `[x]` Add `/appointments/:id/meeting-token` route in backend `scheduling.routes.js`
-- `[x]` Implement `getMeetingToken` controller in `scheduling.controller.js`
-- `[x]` Implement JWT verification inside signaling `server.js` for the `join-room` event
-- `[x]` Add `getMeetingToken` method in client `appointmentService.ts`
-- `[x]` Update client `VideoCallPage.tsx` to fetch the token and use it to join the signaling room
-- `[x]` Add automated integration tests in `server/src/test-telehealth-security.js`
-- `[/]` Verify everything runs and passes successfully
