@@ -1,16 +1,56 @@
-# React + Vite
+# MediConnect Frontend Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the React frontend client for the MediConnect healthcare platform, built using React, Vite, TypeScript, and Tailwind CSS.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Telehealth Module**: Secure P2P encrypted WebRTC consultations with live SOAP clinical notes, medical chart integrations, and prior history access.
+- **Responsive Layout**: Premium CSS styling optimized for both desktop viewports and mobile devices.
+- **Offline / Network Detection**: Automatic UI overlays for network dropouts and secure signaling reconnection attempts.
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+Ensure you have **Node.js** (v18+) and **npm** installed.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Installation
+
+1. Navigate to the client directory:
+   ```bash
+   cd client
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+### Environment Configuration
+
+Create a `.env` file in the `client/` directory to customize connection endpoints:
+
+```env
+# URL for the Express API server
+VITE_API_URL=http://localhost:5000/api
+
+# URL for the WebRTC Socket.io signaling server
+VITE_SIGNALING_URL=http://localhost:5001
+```
+
+*If no environment variables are defined, the app will fallback to the local development defaults listed above.*
+
+### Running the Application
+
+Start the local Vite development server:
+```bash
+npm run dev
+```
+The client dashboard will typically be available at [http://localhost:5173](http://localhost:5173).
+
+### Building for Production
+
+Compile and bundle the frontend code for production deployment:
+```bash
+npm run build
+```
+This optimizes and compiles assets into the `dist/` directory.

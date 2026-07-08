@@ -21,11 +21,16 @@ app.use(express.static(path.join(__dirname, "public")));
 const server = http.createServer(app);
 
 // Configure Socket.io with CORS enabled for frontend clients
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
+
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins for dev/testing
+    origin: CORS_ORIGIN,
     methods: ["GET", "POST"],
   },
+  pingInterval: 10000,      // Ping client every 10 seconds to detect dead connections fast
+  pingTimeout: 5000,        // Wait 5 seconds for pong response before closing
+  transports: ["websocket"] // Restrict to websocket only for optimized overhead and latency
 });
 
 // Keep track of active users in rooms: { roomId: { socketId: { userId, role } } }
