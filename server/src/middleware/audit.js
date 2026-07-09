@@ -26,6 +26,11 @@ const getPerformedAction = (method, matchedRoute, rawUrl) => {
     "POST /medical-records": "Create Medical Record and Prescription",
     "GET /medical-records/patient/:patientId": "Retrieve Patient Medical Records",
     "GET /medical-records/:id": "Retrieve Medical Record Details",
+
+    "POST /api/prescriptions": "Create Digital Prescription",
+    "GET /api/prescriptions/:id": "Retrieve Prescription Details",
+    "GET /api/prescriptions/patient/:patientId": "Retrieve Patient Prescriptions",
+    "GET /api/prescriptions/:id/pdf": "Download Prescription PDF",
     
     "POST /doctor-availability": "Create Doctor Availability",
     "PUT /doctor-availability/:id": "Update Doctor Availability",

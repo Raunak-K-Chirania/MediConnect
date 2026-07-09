@@ -6,7 +6,18 @@ const prescriptionSchema = new mongoose.Schema(
     medicalRecord: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "MedicalRecord",
-      required: [true, "Medical record reference is required"],
+    },
+
+    patientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Patient",
+      required: [true, "Patient reference is required"],
+    },
+
+    doctorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Doctor",
+      required: [true, "Doctor reference is required"],
     },
 
     medicines: {
@@ -47,11 +58,27 @@ const prescriptionSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+
+    followUpDate: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+// Pre-validate hook to populate patientId and doctorId from medicalRecord if not provided
+prescriptionSchema.pre("validate", async function () {
+  if (this.medicalRecord && (!this.patientId || !this.doctorId)) {
+    const MedicalRecord = mongoose.model("MedicalRecord");
+    const record = await MedicalRecord.findById(this.medicalRecord);
+    if (record) {
+      if (!this.patientId) this.patientId = record.patientId;
+      if (!this.doctorId) this.doctorId = record.doctorId;
+    }
+  }
+});
 
 // Encryption & Decryption Middleware Hooks
 prescriptionSchema.pre("save", function () {
@@ -91,6 +118,8 @@ prescriptionSchema.post("findOne", function (doc) {
 
 // Indexes
 prescriptionSchema.index({ medicalRecord: 1 });
+prescriptionSchema.index({ patientId: 1 });
+prescriptionSchema.index({ doctorId: 1 });
 
 module.exports = mongoose.model("Prescription", prescriptionSchema);
 
