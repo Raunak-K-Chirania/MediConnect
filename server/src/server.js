@@ -34,6 +34,7 @@ app.use("/api/medical-records", require("./routes/records"));
 app.use("/medical-records", require("./routes/records"));
 app.use("/api/clinical-notes", require("./modules/clinical-notes/clinical-note.routes"));
 app.use("/clinical-notes", require("./modules/clinical-notes/clinical-note.routes"));
+app.use("/api/prescriptions", require("./modules/prescriptions/prescription.routes"));
 app.use("/api", require("./modules/scheduling/scheduling.routes"));
 app.use("/", require("./modules/scheduling/scheduling.routes"));
 
