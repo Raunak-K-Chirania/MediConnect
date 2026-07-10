@@ -80,4 +80,11 @@ export const medicalRecordService = {
     const response = await axiosInstance.delete<{ success: boolean; message: string }>(`/medical-records/${id}`);
     return response.data;
   },
+
+  async downloadPrescriptionPdf(prescriptionId: string): Promise<Blob> {
+    const response = await axiosInstance.get(`/prescriptions/${prescriptionId}/pdf`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 };

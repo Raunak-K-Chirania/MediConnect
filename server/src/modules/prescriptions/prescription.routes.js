@@ -6,6 +6,12 @@ const authorize = require("../../middleware/role");
 const { validateBody } = require("../../middleware/validation");
 const { createPrescriptionSchema } = require("./prescription.validation");
 
+// Verify Digital Prescription (Public - anyone with QR code can access)
+router.get(
+  "/:id/verify",
+  controller.verifyPrescription
+);
+
 // Create Digital Prescription (Doctor only)
 router.post(
   "/",

@@ -62,11 +62,54 @@ const prescriptionSchema = new mongoose.Schema(
     followUpDate: {
       type: Date,
     },
+
+    hash: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+const crypto = require("crypto");
+
+const calculatePrescriptionHash = (doc) => {
+  // Extract medicines fields deterministically
+  const medicines = (doc.medicines || []).map((m) => ({
+    name: m.name,
+    dosage: m.dosage,
+    frequency: m.frequency || "",
+    duration: m.duration || "",
+  }));
+
+  const followUp = doc.followUpDate
+    ? new Date(doc.followUpDate).toISOString()
+    : "";
+
+  const createdAt = doc.createdAt
+    ? new Date(doc.createdAt).toISOString()
+    : "";
+
+  const dataToHash = {
+    id: doc._id.toString(),
+    patientId: doc.patientId && doc.patientId._id ? doc.patientId._id.toString() : (doc.patientId ? doc.patientId.toString() : ""),
+    doctorId: doc.doctorId && doc.doctorId._id ? doc.doctorId._id.toString() : (doc.doctorId ? doc.doctorId.toString() : ""),
+    medicines,
+    instructions: doc.instructions || "",
+    followUpDate: followUp,
+    createdAt,
+  };
+
+  const serialized = JSON.stringify(dataToHash);
+  const secret = process.env.PRESCRIPTION_SECRET || process.env.ENCRYPTION_KEY || "prescription-fallback-secret-key-12345678";
+  return crypto.createHmac("sha256", secret).update(serialized).digest("hex");
+};
+
+// Add static method
+prescriptionSchema.statics.calculateHash = calculatePrescriptionHash;
 
 // Pre-validate hook to populate patientId and doctorId from medicalRecord if not provided
 prescriptionSchema.pre("validate", async function () {
@@ -80,8 +123,19 @@ prescriptionSchema.pre("validate", async function () {
   }
 });
 
-// Encryption & Decryption Middleware Hooks
+// Encryption & Decryption Middleware Hooks + Immutability & Hash generation
 prescriptionSchema.pre("save", function () {
+  if (!this.isNew) {
+    throw new Error("Cannot modify an issued prescription.");
+  }
+
+  if (!this.createdAt) {
+    this.createdAt = new Date();
+  }
+
+  // Generate hash prior to encryption
+  this.hash = calculatePrescriptionHash(this);
+
   if (this.isModified("medicines") && this.medicines) {
     this.medicines = encryptMedicines(this.medicines);
   }

@@ -12,7 +12,7 @@ import { appointmentBookingSchema, rescheduleAppointmentSchema } from '../schema
 import { 
   Calendar, FileText, PlusCircle, Search, Clock, 
   AlertCircle, CheckCircle2, Stethoscope, Video, 
-  Activity, Clipboard, Eye, X, RefreshCw
+  Activity, Clipboard, Eye, X, RefreshCw, Download
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
@@ -52,6 +52,7 @@ export const PatientDashboard: React.FC = () => {
   // Search/Filter states
   const [apptFilter, setApptFilter] = useState<string>('all');
   const [recordSearch, setRecordSearch] = useState('');
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
 
   const sidebarItems = [
     { label: 'Summary', value: 'summary', icon: Activity },
@@ -99,6 +100,26 @@ export const PatientDashboard: React.FC = () => {
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleDownloadPrescription = async (prescriptionId: string) => {
+    setDownloadingPdfId(prescriptionId);
+    try {
+      const blob = await medicalRecordService.downloadPrescriptionPdf(prescriptionId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `prescription-${prescriptionId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast('Prescription PDF downloaded successfully.', 'success');
+    } catch (err) {
+      console.error('Failed to download PDF:', err);
+      showToast('Failed to download prescription PDF. Please try again.', 'error');
+    } finally {
+      setDownloadingPdfId(null);
+    }
   };
 
   const addMinutes = (timeStr: string, minutes: number): string => {
@@ -886,7 +907,17 @@ export const PatientDashboard: React.FC = () => {
 
               {selectedRecord.prescription && selectedRecord.prescription.medicines && selectedRecord.prescription.medicines.length > 0 && (
                 <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl">
-                  <h4 className="font-bold text-indigo-650 text-xs uppercase tracking-wider mb-2">Official Rx Prescription</h4>
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-bold text-indigo-650 text-xs uppercase tracking-wider">Official Rx Prescription</h4>
+                    <button
+                      onClick={() => selectedRecord.prescription?._id && handleDownloadPrescription(selectedRecord.prescription._id)}
+                      disabled={downloadingPdfId === selectedRecord.prescription?._id}
+                      className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-650 hover:text-indigo-800 bg-indigo-100/50 hover:bg-indigo-100 px-2.5 py-1 rounded-xl transition border border-indigo-200/50 disabled:opacity-50"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      {downloadingPdfId === selectedRecord.prescription?._id ? 'Downloading...' : 'Download PDF'}
+                    </button>
+                  </div>
                   <table className="w-full text-[11px] text-left text-slate-600">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-400 uppercase tracking-widest text-[9px]">
