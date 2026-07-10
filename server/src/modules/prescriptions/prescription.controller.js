@@ -92,7 +92,30 @@ const downloadPdf = async (req, res, next) => {
     doc.pipe(res);
 
     // 6. Generate content (this calls doc.end() when complete)
-    generatePrescriptionPdf(prescription, doc);
+    await generatePrescriptionPdf(prescription, doc);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * Controller to handle verifying a digital prescription (public access).
+ */
+const verifyPrescription = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const verification = await prescriptionService.verifyPrescription(id);
+    
+    let message = "Prescription details retrieved successfully";
+    if (!verification.valid) {
+      if (verification.tampered) {
+        message = "WARNING: Prescription verification failed. Document has been tampered with.";
+      } else {
+        message = "Prescription not found in official records.";
+      }
+    }
+    
+    return successResponse(res, 200, message, verification);
   } catch (error) {
     return next(error);
   }
@@ -103,4 +126,5 @@ module.exports = {
   getPrescription,
   getPatientPrescriptions,
   downloadPdf,
+  verifyPrescription,
 };

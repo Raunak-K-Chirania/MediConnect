@@ -7,10 +7,14 @@ import PatientDashboard from './pages/PatientDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import VideoCallPage from './pages/VideoCallPage';
+import VerifyPrescription from './pages/VerifyPrescription';
 
 export const App: React.FC = () => {
   return (
     <Routes>
+      {/* Public Prescription Verification Route */}
+      <Route path="/verify-prescription/:id" element={<VerifyPrescription />} />
+
       {/* Public Auth Routes */}
       <Route
         path="/login"

@@ -168,8 +168,74 @@ const getPatientPrescriptions = async (patientId, user) => {
     .sort({ createdAt: -1 });
 };
 
+/**
+ * Verifies the authenticity of a prescription using hash verification.
+ */
+const verifyPrescription = async (id) => {
+  const prescription = await Prescription.findById(id)
+    .populate({
+      path: "patientId",
+      populate: { path: "user", select: "name email" },
+    })
+    .populate({
+      path: "doctorId",
+      populate: { path: "user", select: "name email" },
+    })
+    .populate("medicalRecord");
+
+  if (!prescription) {
+    return {
+      valid: false,
+      tampered: false,
+      message: "Prescription not found in MediConnect records."
+    };
+  }
+
+  // Calculate HMAC on the current data loaded from database
+  const computedHash = Prescription.calculateHash(prescription);
+
+  if (prescription.hash !== computedHash) {
+    return {
+      valid: false,
+      tampered: true,
+      message: "WARNING: Prescription data mismatch detected! This prescription has been tampered with or modified.",
+      prescription: {
+        _id: prescription._id,
+        patientName: prescription.patientId?.user?.name || "N/A",
+        doctorName: prescription.doctorId?.user?.name || "N/A",
+        date: prescription.createdAt,
+      }
+    };
+  }
+
+  return {
+    valid: true,
+    tampered: false,
+    message: "Prescription verified successfully. All details are authentic and match official records.",
+    prescription: {
+      _id: prescription._id,
+      patient: {
+        name: prescription.patientId?.user?.name || "N/A",
+        gender: prescription.patientId?.gender || "N/A",
+        dateOfBirth: prescription.patientId?.dateOfBirth || "N/A",
+      },
+      doctor: {
+        name: prescription.doctorId?.user?.name || "N/A",
+        specialization: prescription.doctorId?.specialization || "N/A",
+        licenseNumber: prescription.doctorId?.licenseNumber || "N/A",
+        hospital: prescription.doctorId?.hospital || "N/A",
+      },
+      medicines: prescription.medicines,
+      instructions: prescription.instructions || "",
+      followUpDate: prescription.followUpDate || null,
+      createdAt: prescription.createdAt,
+    }
+  };
+};
+
 module.exports = {
   createPrescription,
   getPrescriptionById,
   getPatientPrescriptions,
+  verifyPrescription,
 };

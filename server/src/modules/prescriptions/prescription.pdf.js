@@ -1,4 +1,5 @@
 const PDFDocument = require("pdfkit");
+const QRCode = require("qrcode");
 
 /**
  * Helper to calculate patient's age in years
@@ -17,7 +18,7 @@ const calculateAge = (dobString) => {
  * @param {Object} prescription - Decrypted prescription document
  * @param {PDFDocument} doc - PDFKit document instance
  */
-const generatePrescriptionPdf = (prescription, doc) => {
+const generatePrescriptionPdf = async (prescription, doc) => {
   // Extract related documents
   const patient = prescription.patientId || {};
   const patientUser = patient.user || {};
@@ -152,6 +153,40 @@ const generatePrescriptionPdf = (prescription, doc) => {
   }
 
   // -- Signature & Footer --
+  // -- QR Code Generation and Embedding --
+  const verificationUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/verify-prescription/${prescription._id}`;
+  let qrBuffer = null;
+  try {
+    const QRCode = require("qrcode"); // require again just in case, though it is imported at top
+    // Generate QR code synchronously from callback is not possible but we can await it because we made this function async!
+    qrBuffer = await QRCode.toBuffer(verificationUrl, {
+      errorCorrectionLevel: "H",
+      margin: 1,
+      width: 100,
+    });
+  } catch (err) {
+    console.error("Failed to generate prescription verification QR code:", err);
+  }
+
+  if (qrBuffer) {
+    // Embed the QR Code
+    doc.image(qrBuffer, 50, 660, { width: 80 });
+
+    // Label beside the QR Code
+    doc.fillColor(TEXT_MUTED).fontSize(7).font("Helvetica-Bold").text("PRESCRIPTION VERIFICATION", 140, 675);
+    doc.font("Helvetica").fontSize(6.5).text(
+      "Scan this QR code or visit the verification portal to verify the authenticity of this digital prescription. Any mismatch indicates a tampered or invalid prescription.",
+      140,
+      687,
+      { width: 200 }
+    );
+    doc.fillColor(PRIMARY_COLOR).fontSize(6.5).font("Helvetica-Bold").text(
+      `Secure Hash: ${prescription.hash ? prescription.hash.substring(0, 32) + "..." : "N/A"}`,
+      140,
+      715
+    );
+  }
+
   // Signature Box
   doc.moveTo(370, 720).lineTo(520, 720).strokeColor(BORDER_COLOR).lineWidth(1).stroke();
   doc.fillColor(TEXT_MUTED).fontSize(8).font("Helvetica-Bold").text("Digitally Signed by Prescriber", 370, 725, { width: 150, align: "center" });

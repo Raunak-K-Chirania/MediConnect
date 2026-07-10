@@ -12,7 +12,7 @@ import { clinicalNoteSchema, medicalRecordSchema } from '../schemas/validationSc
 import { 
   Calendar, FileText, Search, Clock, 
   AlertCircle, CheckCircle2, User, Stethoscope, 
-  Activity, Clipboard, Eye, X, Check, Trash2, Edit2, Plus, RefreshCw, Video
+  Activity, Clipboard, Eye, X, Check, Trash2, Edit2, Plus, RefreshCw, Video, Download
 } from 'lucide-react';
 
 export const DoctorDashboard: React.FC = () => {
@@ -26,8 +26,9 @@ export const DoctorDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Success / Error Alerts
+  // Success / Info notifications
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
 
   // Rejection Dialog State
   const [rejectingAppt, setRejectingAppt] = useState<Appointment | null>(null);
@@ -83,6 +84,26 @@ export const DoctorDashboard: React.FC = () => {
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleDownloadPrescription = async (prescriptionId: string) => {
+    setDownloadingPdfId(prescriptionId);
+    try {
+      const blob = await medicalRecordService.downloadPrescriptionPdf(prescriptionId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `prescription-${prescriptionId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast('Prescription PDF downloaded successfully.', 'success');
+    } catch (err) {
+      console.error('Failed to download PDF:', err);
+      showToast('Failed to download prescription PDF. Please try again.', 'error');
+    } finally {
+      setDownloadingPdfId(null);
+    }
   };
 
   // Actions for Appointments
@@ -729,7 +750,17 @@ export const DoctorDashboard: React.FC = () => {
 
                                   {rec.prescription && rec.prescription.medicines && rec.prescription.medicines.length > 0 && (
                                     <div className="p-2.5 bg-teal-55/60 border border-teal-100 rounded-lg text-[11px] mt-1 text-slate-650">
-                                      <strong className="text-teal-650 block mb-0.5">Prescribed Rx:</strong>
+                                      <div className="flex justify-between items-center mb-1.5">
+                                        <strong className="text-teal-650">Prescribed Rx:</strong>
+                                        <button
+                                          onClick={() => rec.prescription?._id && handleDownloadPrescription(rec.prescription._id)}
+                                          disabled={downloadingPdfId === rec.prescription?._id}
+                                          className="flex items-center gap-1 text-[9px] font-bold text-teal-700 hover:text-teal-900 bg-teal-100 hover:bg-teal-200 px-2 py-0.5 rounded-lg transition border border-teal-300/40 disabled:opacity-50"
+                                        >
+                                          <Download className="w-2.5 h-2.5" />
+                                          {downloadingPdfId === rec.prescription?._id ? 'Downloading...' : 'Download PDF'}
+                                        </button>
+                                      </div>
                                       <ul className="list-disc pl-4 space-y-0.5">
                                         {rec.prescription.medicines.map((med: any, idx: number) => (
                                           <li key={idx}>
