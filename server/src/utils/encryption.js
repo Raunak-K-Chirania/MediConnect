@@ -10,6 +10,9 @@ const IV_LENGTH = 12; // GCM recommended IV length
 const getEncryptionKey = () => {
   const rawKey = process.env.ENCRYPTION_KEY;
   if (!rawKey) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("FATAL CONFIGURATION ERROR: ENCRYPTION_KEY environment variable is required in production mode.");
+    }
     console.warn(
       "WARNING: ENCRYPTION_KEY is not set. A fallback key is being used. This is unsafe for production environments."
     );
@@ -20,6 +23,20 @@ const getEncryptionKey = () => {
 };
 
 const ENCRYPTION_KEY = getEncryptionKey();
+
+/**
+ * Checks if a given text string matches the aes-256-gcm encrypted hex format.
+ * Format is ivHex:tagHex:cipherHex
+ * @param {any} text - The value to check.
+ * @returns {boolean} True if text matches the encrypted format.
+ */
+const isEncrypted = (text) => {
+  if (typeof text !== "string") return false;
+  const parts = text.split(":");
+  if (parts.length !== 3) return false;
+  const [iv, tag, cipher] = parts;
+  return /^[0-9a-fA-F]{24}$/.test(iv) && /^[0-9a-fA-F]{32}$/.test(tag) && /^[0-9a-fA-F]+$/.test(cipher);
+};
 
 /**
  * Encrypts a plaintext string to a ciphertext string in format: ivHex:tagHex:cipherHex.
@@ -134,6 +151,7 @@ const decryptMedicines = (medicines) => {
 module.exports = {
   encrypt,
   decrypt,
+  isEncrypted,
   encryptArray,
   decryptArray,
   encryptMedicines,

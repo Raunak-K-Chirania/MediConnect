@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { encrypt, decrypt } = require("../utils/encryption");
+const { encrypt, decrypt, isEncrypted } = require("../utils/encryption");
 
 const appointmentSchema = new mongoose.Schema(
     {
@@ -146,10 +146,10 @@ appointmentSchema.pre("validate", async function () {
         }
 
         // Handle Encryption of PHI fields
-        if (this.isModified("reason") && this.reason && !this.reason.includes(":")) {
+        if (this.isModified("reason") && this.reason && !isEncrypted(this.reason)) {
             this.reason = encrypt(this.reason);
         }
-        if (this.isModified("reasonForVisit") && this.reasonForVisit && !this.reasonForVisit.includes(":")) {
+        if (this.isModified("reasonForVisit") && this.reasonForVisit && !isEncrypted(this.reasonForVisit)) {
             this.reasonForVisit = encrypt(this.reasonForVisit);
         }
     } catch (err) {

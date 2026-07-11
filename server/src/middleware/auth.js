@@ -10,7 +10,20 @@ const auth = async (req, res, next) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret");
+    const secret = process.env.JWT_SECRET;
+    if (!secret && process.env.NODE_ENV === "production") {
+      throw new ApiError(500, "JWT_SECRET environment variable is missing.");
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, secret || "fallback_secret");
+    } catch (jwtErr) {
+      if (jwtErr.name === "TokenExpiredError") {
+        throw new ApiError(401, "Token has expired. Access denied.");
+      }
+      throw new ApiError(401, "Invalid token. Access denied.");
+    }
     
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {

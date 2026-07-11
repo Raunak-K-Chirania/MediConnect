@@ -3,16 +3,59 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const path = require("path");
 const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("FATAL CONFIGURATION ERROR: JWT_SECRET environment variable is required in production mode.");
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Middlewares
-app.use(cors());
+// 1. HTTP Security Headers
+app.use(helmet());
+
+// 2. CORS Policy Hardening
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",")
+  : ["http://localhost:5173", "http://127.0.0.1:5173"];
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) return true;
+  if (/^http:\/\/localhost:\d+$/.test(origin)) return true;
+  if (/^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) return true;
+  return false;
+};
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Blocked by CORS policy"));
+      }
+    },
+    methods: ["GET", "POST"],
+  })
+);
+
+// 3. HTTP Rate Limiting
+const signalingHttpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  message: { error: "Too many HTTP requests to signaling server. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(signalingHttpLimiter);
 app.use(express.json());
 
 // Serve static tester page from the public directory
@@ -21,11 +64,15 @@ app.use(express.static(path.join(__dirname, "public")));
 const server = http.createServer(app);
 
 // Configure Socket.io with CORS enabled for frontend clients
-const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
-
 const io = new Server(server, {
   cors: {
-    origin: CORS_ORIGIN,
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Blocked by CORS policy"));
+      }
+    },
     methods: ["GET", "POST"],
   },
   pingInterval: 10000,      // Ping client every 10 seconds to detect dead connections fast
@@ -48,7 +95,7 @@ io.on("connection", (socket) => {
 
     try {
       // Cryptographically verify the token
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, JWT_SECRET || "fallback_secret");
 
       // Verify that the token claims match the client parameters
       if (decoded.roomId !== roomId) {
@@ -135,8 +182,29 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Helper to validate signal relays and prevent room/peer hijacking
+  const validateRelay = (targetSocketId, targetRoomId) => {
+    if (!socket.roomId) {
+      socket.emit("error", { message: "Access denied. You must join a room first." });
+      return false;
+    }
+    if (targetRoomId && socket.roomId !== targetRoomId) {
+      socket.emit("error", { message: "Access denied. You are not a member of the target room." });
+      return false;
+    }
+    if (targetSocketId) {
+      const isTargetInSameRoom = roomUsers[socket.roomId] && roomUsers[socket.roomId][targetSocketId];
+      if (!isTargetInSameRoom) {
+        socket.emit("error", { message: "Access denied. Target peer is not in your room." });
+        return false;
+      }
+    }
+    return true;
+  };
+
   // 3. WebRTC SDP Offer Relay
   socket.on("offer", ({ roomId, targetSocketId, offer }) => {
+    if (!validateRelay(targetSocketId, roomId)) return;
     console.log(`[Signaling] Offer from ${socket.id} to ${targetSocketId || "room " + roomId}`);
     if (targetSocketId) {
       io.to(targetSocketId).emit("offer", {
@@ -153,6 +221,7 @@ io.on("connection", (socket) => {
 
   // 4. WebRTC SDP Answer Relay
   socket.on("answer", ({ roomId, targetSocketId, answer }) => {
+    if (!validateRelay(targetSocketId, roomId)) return;
     console.log(`[Signaling] Answer from ${socket.id} to ${targetSocketId || "room " + roomId}`);
     if (targetSocketId) {
       io.to(targetSocketId).emit("answer", {
@@ -169,6 +238,7 @@ io.on("connection", (socket) => {
 
   // 5. WebRTC ICE Candidate Relay
   socket.on("ice-candidate", ({ roomId, targetSocketId, candidate }) => {
+    if (!validateRelay(targetSocketId, roomId)) return;
     console.log(`[Signaling] ICE Candidate from ${socket.id} to ${targetSocketId || "room " + roomId}`);
     if (targetSocketId) {
       io.to(targetSocketId).emit("ice-candidate", {
@@ -185,6 +255,7 @@ io.on("connection", (socket) => {
 
   // 5.5. Peer Media State Relay (Mute/Camera control)
   socket.on("peer-state", ({ roomId, targetSocketId, audioEnabled, videoEnabled }) => {
+    if (!validateRelay(targetSocketId, roomId)) return;
     console.log(`[Signaling] Peer state update from ${socket.id}: audioEnabled=${audioEnabled}, videoEnabled=${videoEnabled}`);
     if (targetSocketId) {
       io.to(targetSocketId).emit("peer-state", {
