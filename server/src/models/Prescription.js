@@ -104,7 +104,13 @@ const calculatePrescriptionHash = (doc) => {
   };
 
   const serialized = JSON.stringify(dataToHash);
-  const secret = process.env.PRESCRIPTION_SECRET || process.env.ENCRYPTION_KEY || "prescription-fallback-secret-key-12345678";
+  const secret = process.env.PRESCRIPTION_SECRET || process.env.ENCRYPTION_KEY;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("FATAL CONFIGURATION ERROR: PRESCRIPTION_SECRET or ENCRYPTION_KEY must be configured in production.");
+    }
+    return crypto.createHmac("sha256", "prescription-fallback-secret-key-12345678").update(serialized).digest("hex");
+  }
   return crypto.createHmac("sha256", secret).update(serialized).digest("hex");
 };
 

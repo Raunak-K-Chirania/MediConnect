@@ -3,6 +3,7 @@ const router = express.Router();
 const Patient = require("../models/Patient");
 const auth = require("../middleware/auth");
 const authorize = require("../middleware/role");
+const { validateBody, updatePatientSchema } = require("../middleware/validation");
 
 // @route   GET /api/patients/me
 // @desc    Get current patient's profile (decrypted)
@@ -48,7 +49,7 @@ router.get("/:id", auth, async (req, res) => {
 // @route   PUT /api/patients/me
 // @desc    Update current patient's profile
 // @access  Private (Patient only)
-router.put("/me", auth, authorize("Patient"), async (req, res) => {
+router.put("/me", auth, authorize("Patient"), validateBody(updatePatientSchema), async (req, res) => {
   try {
     const patient = await Patient.findOne({ user: req.user.id });
     if (!patient) {

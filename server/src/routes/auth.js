@@ -5,12 +5,19 @@ const User = require("../models/User");
 const Patient = require("../models/Patient");
 const Doctor = require("../models/Doctor");
 const auth = require("../middleware/auth");
+const { validateBody, registerSchema, loginSchema } = require("../middleware/validation");
 
 // Helper function to generate JWT
 const generateToken = (user) => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("FATAL CONFIGURATION ERROR: JWT_SECRET environment variable is required in production.");
+    }
+  }
   return jwt.sign(
     { id: user._id, role: user.role },
-    process.env.JWT_SECRET || "fallback_secret",
+    secret || "fallback_secret",
     { expiresIn: "1d" }
   );
 };
@@ -18,13 +25,9 @@ const generateToken = (user) => {
 // @route   POST /api/auth/register
 // @desc    Register a new user (Patient, Doctor, or Admin)
 // @access  Public
-router.post("/register", async (req, res) => {
+router.post("/register", validateBody(registerSchema), async (req, res) => {
   try {
     const { name, email, password, role, ...extraDetails } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: "Name, email, and password are required" });
-    }
 
     // Normalize role (e.g., "patient" -> "Patient")
     let userRole = "Patient";
@@ -123,13 +126,9 @@ router.post("/register", async (req, res) => {
 // @route   POST /api/auth/login
 // @desc    Authenticate user & get token
 // @access  Public
-router.post("/login", async (req, res) => {
+router.post("/login", validateBody(loginSchema), async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: "Please provide email and password" });
-    }
 
     // Find user
     const user = await User.findOne({ email });

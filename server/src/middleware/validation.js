@@ -61,9 +61,70 @@ const validateBody = (schema) => (req, res, next) => {
 
 const updateMedicalRecordSchema = createMedicalRecordSchema.partial();
 
+// Schema for user registration
+const registerSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters long").max(100, "Name must not exceed 100 characters"),
+  email: z.string().email("Please provide a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters long").max(100, "Password must not exceed 100 characters"),
+  role: z.enum(["Patient", "Doctor", "Admin", "patient", "doctor", "admin"]).optional(),
+  
+  // Doctor fields
+  specialization: z.string().min(1, "Specialization is required for Doctor").optional(),
+  licenseNumber: z.string().min(1, "License number is required for Doctor").optional(),
+  qualification: z.string().optional(),
+  experience: z.union([z.string(), z.number()]).optional(),
+  consultationFee: z.union([z.string(), z.number()]).optional(),
+  hospital: z.string().optional(),
+  available: z.boolean().optional(),
+
+  // Patient fields
+  gender: z.enum(["Male", "Female", "Other", "male", "female", "other"]).optional(),
+  dateOfBirth: z.string().refine((val) => !val || !isNaN(Date.parse(val)), {
+    message: "Invalid date format for dateOfBirth"
+  }).optional(),
+  bloodGroup: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
+  phone: z.string().regex(/^\+?[0-9\s\-]{7,15}$/, "Please provide a valid phone number (7-15 digits)").optional(),
+  address: z.string().optional(),
+  emergencyContact: z.string().regex(/^\+?[0-9\s\-]{7,15}$/, "Please provide a valid emergency contact phone number").optional(),
+  allergies: z.array(z.string().min(1)).optional(),
+  medicalHistory: z.array(z.string().min(1)).optional(),
+}).refine(data => {
+  const normalizedRole = data.role ? data.role.charAt(0).toUpperCase() + data.role.slice(1).toLowerCase() : "Patient";
+  if (normalizedRole === "Doctor") {
+    return !!data.specialization && !!data.licenseNumber;
+  }
+  return true;
+}, {
+  message: "Doctor registration requires specialization and licenseNumber",
+  path: ["specialization"]
+});
+
+// Schema for user login
+const loginSchema = z.object({
+  email: z.string().email("Please provide a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+// Schema for patient profile updates
+const updatePatientSchema = z.object({
+  gender: z.enum(["Male", "Female", "Other", "male", "female", "other"]).optional(),
+  dateOfBirth: z.string().refine((val) => !val || !isNaN(Date.parse(val)), {
+    message: "Invalid date format for dateOfBirth"
+  }).optional(),
+  bloodGroup: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
+  phone: z.string().regex(/^\+?[0-9\s\-]{7,15}$/, "Please provide a valid phone number (7-15 digits)").optional(),
+  address: z.string().optional(),
+  emergencyContact: z.string().regex(/^\+?[0-9\s\-]{7,15}$/, "Please provide a valid emergency contact phone number").optional(),
+  allergies: z.array(z.string().min(1)).optional(),
+  medicalHistory: z.array(z.string().min(1)).optional(),
+});
+
 module.exports = {
   objectIdSchema,
   createMedicalRecordSchema,
   updateMedicalRecordSchema,
+  registerSchema,
+  loginSchema,
+  updatePatientSchema,
   validateBody,
 };
