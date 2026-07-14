@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0-jammy
+    container_name: mediconnect_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: always
+    networks:
+      - mediconnect_network
+
+  backend:
+    build:
+      context: ./server
+    container_name: mediconnect_backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongodb
+    restart: always
+    command: sh -c "node src/create-admin.js || true && node src/server.js"
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongodb:27017/mediconnect
+      - NODE_ENV=production
+      - JWT_SECRET=production_super_secret_key_mediconnect
+      - ENCRYPTION_KEY=my_secure_encryption_key_32_chars_1234
+      - ADMIN_EMAIL=admin@mediconnect.com
+      - ADMIN_PASSWORD=Password123!
+    networks:
+      - mediconnect_network
+
+  signaling:
+    build:
+      context: ./signaling
+    container_name: mediconnect_signaling
+    ports:
+      - "5001:5001"
+    restart: always
+    environment:
+      - PORT=5001
+      - NODE_ENV=production
+      - JWT_SECRET=production_super_secret_key_mediconnect
+      - CORS_ORIGIN=*
+    networks:
+      - mediconnect_network
+
+  frontend:
+    build:
+      context: ./client
+      args:
+        - VITE_API_URL=http://localhost:5000/api
+        - VITE_SIGNALING_URL=http://localhost:5001
+    container_name: mediconnect_frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+      - signaling
+    restart: always
+    networks:
+      - mediconnect_network
+
+networks:
+  mediconnect_network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local

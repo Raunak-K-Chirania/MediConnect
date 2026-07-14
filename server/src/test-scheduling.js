@@ -276,8 +276,8 @@ const runTests = async () => {
     // --- TEST AREA 2: APPOINTMENT SLOT GENERATION ---
     console.log("\n--- [Test Area 2] Appointment Slot Generation ---");
 
-    // Query slots for Friday, July 10th, 2026 (a future Friday)
-    const checkSlotsRes = await apiRequest("GET", `/appointments/available-slots/${docUserId}?date=2026-07-10`, { Authorization: `Bearer ${patientToken}` });
+    // Query slots for Friday, July 17th, 2026 (a future Friday)
+    const checkSlotsRes = await apiRequest("GET", `/appointments/available-slots/${docUserId}?date=2026-07-17`, { Authorization: `Bearer ${patientToken}` });
     console.log(`[CHECK] GET /appointments/available-slots/:doctorId: Status = ${checkSlotsRes.statusCode} (Expected: 200)`);
     if (checkSlotsRes.statusCode !== 200) throw new Error("Retrieving available slots failed");
     console.log(`Generated slots count: ${checkSlotsRes.body.availableSlots.length}`);
@@ -303,7 +303,7 @@ const runTests = async () => {
     const apptPayload1 = {
       patientId: patientUserId,
       doctorId: docUserId,
-      appointmentDate: "2026-07-10",
+      appointmentDate: "2026-07-17",
       startTime: "09:00",
       endTime: "09:30",
       appointmentType: "Standard Checkup",
@@ -321,7 +321,7 @@ const runTests = async () => {
     console.log(`[CHECK] Audit Log: Action = "${requestedApptAudit.action}", ResourceId = "${appt1Id}"`);
 
     // Test 3.2: Verify booked slot disappears from available slots
-    const checkSlots2 = await apiRequest("GET", `/appointments/available-slots/${docUserId}?date=2026-07-10`, { Authorization: `Bearer ${patientToken}` });
+    const checkSlots2 = await apiRequest("GET", `/appointments/available-slots/${docUserId}?date=2026-07-17`, { Authorization: `Bearer ${patientToken}` });
     const slots2 = checkSlots2.body.availableSlots;
     const hasBookedSlot = slots2.includes("09:00");
     console.log(`- Booked slot 09:00 disappeared? ${!hasBookedSlot} (Expected: true)`);
