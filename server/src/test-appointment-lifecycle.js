@@ -209,7 +209,7 @@ const runTests = async () => {
     const bookingPayload = {
       patientId: patientUserId,
       doctorId: docUserId,
-      appointmentDate: "2026-07-06", // A future Monday
+      appointmentDate: "2026-07-20", // A future Monday
       startTime: "09:00",
       endTime: "09:30",
       appointmentType: "Standard Consultation",
@@ -369,7 +369,7 @@ const runTests = async () => {
 
     // Valid reschedule (15:00 - 15:30)
     const reschedulePayload = {
-      newDate: "2026-07-06",
+      newDate: "2026-07-20",
       newStartTime: "15:00",
       newEndTime: "15:30",
     };
@@ -388,7 +388,7 @@ const runTests = async () => {
 
     // Invalid reschedule - outside working hours
     const rescheduleBadHours = await apiRequest("PATCH", `/appointments/${appt5Id}/reschedule`, { Authorization: `Bearer ${patientToken}` }, {
-      newDate: "2026-07-06",
+      newDate: "2026-07-20",
       newStartTime: "08:00", // Start is 09:00
       newEndTime: "08:30",
     });
@@ -397,7 +397,7 @@ const runTests = async () => {
 
     // Invalid reschedule - during break
     const rescheduleDuringBreak = await apiRequest("PATCH", `/appointments/${appt5Id}/reschedule`, { Authorization: `Bearer ${patientToken}` }, {
-      newDate: "2026-07-06",
+      newDate: "2026-07-20",
       newStartTime: "12:00", // Lunch is 12:00-13:00
       newEndTime: "12:30",
     });

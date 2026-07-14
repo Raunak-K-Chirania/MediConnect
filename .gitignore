@@ -2,8 +2,9 @@
 node_modules/
 /client/node_modules/
 /server/node_modules/
+/signaling/node_modules/
 
-# Environment / Secret Configuration files (CRITICAL: Protects against password & private key leakage)
+# Environment / Secret Configuration files (CRITICAL: Protects against credentials leakage)
 .env
 .env.local
 .env.development.local
@@ -12,6 +13,7 @@ node_modules/
 .env.development
 .env.test
 .env.production
+.env.staging
 *.env
 *.env.*
 !*.env.example
@@ -46,6 +48,9 @@ Thumbs.db
 .eslintcache
 /client/.eslintcache
 
+# Scratch / Temp files
+/server/scratch/
+scratch/
+
 # Postman / Workspace Configuration
 mediconnect_appointments.postman_collection.json
-
