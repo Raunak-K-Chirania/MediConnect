@@ -10,6 +10,8 @@ export interface Appointment {
   appointmentType: string;
   reasonForVisit: string;
   notes?: string;
+  isEmergency?: boolean;
+  priority?: 'standard' | 'urgent' | 'emergency';
   status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'completed';
   rejectionReason?: string;
   cancellationReason?: string;
@@ -26,6 +28,8 @@ export interface BookAppointmentInput {
   appointmentType: string;
   reasonForVisit: string;
   notes?: string;
+  isEmergency?: boolean;
+  priority?: 'standard' | 'urgent' | 'emergency';
 }
 
 export interface RescheduleAppointmentInput {

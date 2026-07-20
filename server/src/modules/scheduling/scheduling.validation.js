@@ -138,6 +138,8 @@ const createAppointmentSchema = z
     appointmentType: z.string().min(1, "Appointment type is required"),
     reasonForVisit: z.string().min(1, "Reason for visit is required"),
     notes: z.string().optional().default(""),
+    isEmergency: z.boolean().optional().default(false),
+    priority: z.enum(["standard", "urgent", "emergency"]).optional().default("standard"),
   })
   .refine(
     (data) => {

@@ -164,7 +164,7 @@ const runSecuritySuite = async () => {
     const doctorUserId = regDocRes.body.user.id;
 
     // Test 2.2: Verify Audit Log for Doctor Registration
-    const docRegLog = await waitForAuditLog({ performedAction: "User Registration" });
+    const docRegLog = await waitForAuditLog({ performedAction: "User Registration", userId: doctorUserId });
     if (!docRegLog) throw new Error("Audit Log: Entry for Doctor Registration not found in database");
     console.log(`[CHECK] Doctor Registration Audit Log:
     - Action: "${docRegLog.performedAction}" (Expected: "User Registration")
