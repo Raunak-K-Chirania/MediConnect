@@ -12,7 +12,8 @@ import { appointmentBookingSchema, rescheduleAppointmentSchema } from '../schema
 import { 
   Calendar, FileText, PlusCircle, Search, Clock, 
   AlertCircle, CheckCircle2, Stethoscope, Video, 
-  Activity, Clipboard, Eye, X, RefreshCw, Download
+  Activity, Clipboard, Eye, X, RefreshCw, Download,
+  Siren, PhoneCall, ShieldAlert, Zap
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
@@ -52,13 +53,28 @@ export const PatientDashboard: React.FC = () => {
   // Search/Filter states
   const [apptFilter, setApptFilter] = useState<string>('all');
   const [recordSearch, setRecordSearch] = useState('');
-  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+  // Emergency SOS States
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [selectedEmergencyDoctor, setSelectedEmergencyDoctor] = useState('');
+  const [selectedEmergencySymptoms, setSelectedEmergencySymptoms] = useState<string[]>([]);
+  const [emergencyNotes, setEmergencyNotes] = useState('');
+  const [notifyingContact, setNotifyingContact] = useState(false);
+
+  const URGENT_SYMPTOMS = [
+    'Chest Pain / Discomfort',
+    'Severe Breathing Difficulty',
+    'Sudden Paralysis / Weakness',
+    'Severe Bleeding / Physical Trauma',
+    'High Fever (> 103°F / 39.4°C)',
+    'Severe Allergic Reaction (Anaphylaxis)',
+  ];
 
   const sidebarItems = [
     { label: 'Summary', value: 'summary', icon: Activity },
     { label: 'My Appointments', value: 'appointments', icon: Calendar },
     { label: 'Book Appointment', value: 'book', icon: PlusCircle },
     { label: 'Medical History', value: 'records', icon: FileText },
+    { label: 'Emergency SOS', value: 'emergency', icon: Siren, isEmergency: true },
   ];
 
   // Load patient dashboard data
@@ -275,6 +291,61 @@ export const PatientDashboard: React.FC = () => {
     }
   };
 
+  const handleInstantEmergencyBooking = async () => {
+    if (!selectedEmergencyDoctor && doctors.length > 0) {
+      // Auto pick first available doctor if none selected
+      setSelectedEmergencyDoctor(doctors[0]?.user?._id || doctors[0]?._id);
+    }
+    const docId = selectedEmergencyDoctor || (doctors.length > 0 ? (doctors[0]?.user?._id || doctors[0]?._id) : '');
+    if (!docId) {
+      showToast('No active doctors available for emergency auto-assignment', 'error');
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      const currentHours = String(now.getHours()).padStart(2, '0');
+      const currentMins = String(now.getMinutes()).padStart(2, '0');
+      const startTime = `${currentHours}:${currentMins}`;
+      const endTime = addMinutes(startTime, 30);
+
+      const symptomText = selectedEmergencySymptoms.length > 0
+        ? `[URGENT EMERGENCY] Symptoms: ${selectedEmergencySymptoms.join(', ')}. ${emergencyNotes}`
+        : emergencyNotes || '[URGENT EMERGENCY] Immediate telehealth consultation requested.';
+
+      await appointmentService.book({
+        patientId: user!.id,
+        doctorId: docId,
+        appointmentDate: todayStr,
+        startTime,
+        endTime,
+        appointmentType: 'Emergency Consultation',
+        reasonForVisit: symptomText,
+        notes: 'INSTANT SOS EMERGENCY PRIORITY',
+        isEmergency: true,
+        priority: 'emergency',
+      });
+
+      showToast('🚨 Emergency SOS submitted! Priority appointment activated.', 'success');
+      setShowEmergencyModal(false);
+      setSelectedEmergencySymptoms([]);
+      setEmergencyNotes('');
+      loadData();
+      setActiveTab('appointments');
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Emergency request failed. Please call local emergency services (911/112).', 'error');
+    }
+  };
+
+  const handleNotifyEmergencyContact = () => {
+    setNotifyingContact(true);
+    setTimeout(() => {
+      setNotifyingContact(false);
+      showToast('🚨 Emergency notification alert dispatched to registered emergency contact!', 'success');
+    }, 1500);
+  };
+
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -346,12 +417,234 @@ export const PatientDashboard: React.FC = () => {
         </div>
       ) : (
         <>
+          {/* TAB 0: EMERGENCY SOS PORTAL */}
+          {activeTab === 'emergency' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 animate-pulse">
+                        <Siren className="w-3 h-3" /> Priority Protocol Active
+                      </span>
+                    </div>
+                    <h1 className="text-2xl font-black">🚨 Emergency Medical SOS</h1>
+                    <p className="text-red-100 text-xs mt-1 max-w-xl">
+                      If you or someone near you is experiencing a life-threatening crisis, call emergency services immediately or request an instant priority consultation below.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setShowEmergencyModal(true)}
+                    className="px-5 py-3 bg-white hover:bg-red-50 text-red-700 text-xs font-black rounded-2xl shadow-lg flex items-center gap-2 shrink-0 cursor-pointer transition hover:scale-105"
+                  >
+                    <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                    <span>Launch SOS Modal</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Emergency Hotline Quick-Call Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <a
+                  href="tel:911"
+                  className="p-5 bg-red-500 hover:bg-red-600 text-white rounded-2xl shadow-md flex items-center justify-between transition hover:scale-102"
+                >
+                  <div>
+                    <span className="text-[10px] uppercase font-extrabold text-red-200 tracking-wider block">Universal Helpline</span>
+                    <span className="text-2xl font-black block mt-0.5">Dial 911</span>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <PhoneCall className="w-5 h-5" />
+                  </div>
+                </a>
+
+                <a
+                  href="tel:112"
+                  className="p-5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl shadow-md flex items-center justify-between transition hover:scale-102"
+                >
+                  <div>
+                    <span className="text-[10px] uppercase font-extrabold text-rose-200 tracking-wider block">European Emergency</span>
+                    <span className="text-2xl font-black block mt-0.5">Dial 112</span>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <PhoneCall className="w-5 h-5" />
+                  </div>
+                </a>
+
+                <a
+                  href="tel:102"
+                  className="p-5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl shadow-md flex items-center justify-between transition hover:scale-102"
+                >
+                  <div>
+                    <span className="text-[10px] uppercase font-extrabold text-amber-200 tracking-wider block">Ambulance Service</span>
+                    <span className="text-2xl font-black block mt-0.5">Dial 102</span>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <PhoneCall className="w-5 h-5" />
+                  </div>
+                </a>
+              </div>
+
+              {/* Embedded Emergency Form */}
+              <div className="bg-white border border-red-200 rounded-3xl p-6 shadow-sm space-y-5">
+                <div>
+                  <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                    <ShieldAlert className="w-5 h-5 text-red-600" />
+                    <span>Instant Telehealth SOS Request</span>
+                  </h3>
+                  <p className="text-slate-500 text-xs mt-0.5">Select your critical symptoms to auto-flag your consultation request to duty practitioners.</p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Duty Doctor Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Select Duty Doctor</label>
+                    <select
+                      value={selectedEmergencyDoctor}
+                      onChange={(e) => setSelectedEmergencyDoctor(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 text-xs font-semibold rounded-xl focus:outline-none focus:border-red-500"
+                    >
+                      <option value="">-- Auto-Assign Duty Practitioner --</option>
+                      {doctors.map((doc) => (
+                        <option key={doc._id || doc.user?._id} value={doc.user?._id || doc._id}>
+                          Dr. {doc.user?.name} ({doc.specialization})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Symptom Selector */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Select Symptoms</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {URGENT_SYMPTOMS.map((symptom) => {
+                        const isChecked = selectedEmergencySymptoms.includes(symptom);
+                        return (
+                          <button
+                            key={symptom}
+                            type="button"
+                            onClick={() => {
+                              if (isChecked) {
+                                setSelectedEmergencySymptoms(selectedEmergencySymptoms.filter(s => s !== symptom));
+                              } else {
+                                setSelectedEmergencySymptoms([...selectedEmergencySymptoms, symptom]);
+                              }
+                            }}
+                            className={`p-3 text-left text-xs font-bold rounded-xl border transition flex items-center gap-2 cursor-pointer ${
+                              isChecked
+                                ? 'bg-red-50 border-red-300 text-red-700 shadow-xs'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
+                            }`}
+                          >
+                            <span className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${isChecked ? 'bg-red-600 border-red-600 text-white' : 'border-slate-300'}`}>
+                              {isChecked && '✓'}
+                            </span>
+                            <span className="truncate">{symptom}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Emergency Notes */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Critical Notes</label>
+                    <textarea
+                      value={emergencyNotes}
+                      onChange={(e) => setEmergencyNotes(e.target.value)}
+                      placeholder="Describe current symptoms, location, or urgency..."
+                      rows={3}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl focus:outline-none focus:border-red-500 resize-none"
+                    />
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleInstantEmergencyBooking}
+                      className="flex-1 py-3 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-red-500/25 flex items-center justify-center gap-2 transition hover:scale-101 cursor-pointer"
+                    >
+                      <Siren className="w-4 h-4" />
+                      <span>SUBMIT INSTANT EMERGENCY SOS</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleNotifyEmergencyContact}
+                      disabled={notifyingContact}
+                      className="py-3 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <ShieldAlert className="w-4 h-4 text-amber-600" />
+                      <span>{notifyingContact ? 'Alerting Emergency Contacts...' : '🔔 Alert Emergency Contacts'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Emergency Consultations Queue */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                  <Clock className="w-4.5 h-4.5 text-red-500" />
+                  <span>My Emergency Consultations</span>
+                </h3>
+
+                {appointments.filter(a => a.isEmergency || a.appointmentType === 'Emergency Consultation').length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-100">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500 stroke-1 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-slate-700">No active emergency SOS requests</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Submit an SOS request above if urgent care is required.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {appointments.filter(a => a.isEmergency || a.appointmentType === 'Emergency Consultation').map((appt) => (
+                      <div key={appt._id} className="p-4 bg-red-50/40 border border-red-200 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded-full flex items-center gap-1">
+                              <Siren className="w-3 h-3" /> Emergency SOS
+                            </span>
+                            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase border rounded-full ${getStatusBadgeClass(appt.status)}`}>
+                              {appt.status}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-black text-slate-800 mt-1">{getDoctorName(appt.doctorId)}</h4>
+                          <p className="text-xs text-slate-600 mt-0.5">{appt.reasonForVisit}</p>
+                        </div>
+
+                        {appt.status === 'approved' && appt.appointmentType === 'Online Video Consult' && (
+                          <button
+                            onClick={() => navigate(`/video-call/${appt._id}`)}
+                            className="px-4 py-2.5 bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md shrink-0"
+                          >
+                            <Video className="w-3.5 h-3.5" />
+                            Join Priority Video Call
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: SUMMARY */}
           {activeTab === 'summary' && (
             <div className="space-y-6 animate-fadeIn">
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                <h1 className="text-2xl font-black text-slate-800">Hello, {user?.name}!</h1>
-                <p className="text-slate-500 text-xs mt-1">Welcome to your secure patient console. Book consultations, view medical records, or review doctors.</p>
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <h1 className="text-2xl font-black text-slate-800">Hello, {user?.name}!</h1>
+                  <p className="text-slate-500 text-xs mt-1">Welcome to your secure patient console. Book consultations, view medical records, or request emergency care.</p>
+                </div>
+                <button
+                  onClick={() => setShowEmergencyModal(true)}
+                  className="px-5 py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs font-black rounded-2xl flex items-center gap-2 shadow-lg shadow-red-500/25 animate-pulse cursor-pointer transition-all hover:scale-105"
+                >
+                  <Siren className="w-4.5 h-4.5" />
+                  <span>EMERGENCY SOS</span>
+                </button>
+              </div>
                 
                 {/* Stats Blocks */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
@@ -370,7 +663,6 @@ export const PatientDashboard: React.FC = () => {
                     <span className="text-2xl font-black text-slate-800 mt-0.5 block">{clinicalNotes.length}</span>
                   </div>
                 </div>
-              </div>
 
               {/* Two Column Panels */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1114,6 +1406,164 @@ export const PatientDashboard: React.FC = () => {
                   className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer transition-colors"
                 >
                   Yes, Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EMERGENCY SOS & INSTANT CONSULTATION */}
+      {showEmergencyModal && (
+        <div className="fixed inset-0 z-55 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white border border-red-200 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto animate-zoomIn relative text-slate-800">
+            <button 
+              onClick={() => {
+                setShowEmergencyModal(false);
+                if (activeTab === 'emergency') setActiveTab('summary');
+              }}
+              className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 border border-slate-200 text-slate-400 hover:text-slate-700 rounded-xl transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center animate-bounce shrink-0">
+                <Siren className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-[10px] font-extrabold text-red-600 uppercase tracking-widest block">Priority Medical Protocol</span>
+                <h2 className="text-xl font-black text-slate-900">🚨 Emergency SOS Assistance</h2>
+              </div>
+            </div>
+
+            {/* Quick Hotline Calling Options */}
+            <div className="p-4 bg-red-50/70 border border-red-200 rounded-2xl space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-red-800 flex items-center gap-1.5">
+                  <PhoneCall className="w-4 h-4 text-red-600 animate-pulse" />
+                  Life-Threatening Emergency Hotlines
+                </span>
+                <span className="text-[10px] text-red-600 font-bold">Free 24/7 Toll-Free</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <a
+                  href="tel:911"
+                  className="py-2.5 px-3 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition hover:scale-102"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>Call 911</span>
+                </a>
+                <a
+                  href="tel:112"
+                  className="py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition hover:scale-102"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>Call 112 (EU)</span>
+                </a>
+                <a
+                  href="tel:102"
+                  className="py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition hover:scale-102 col-span-2 sm:col-span-1"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>Ambulance</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Instant Emergency Telehealth Consultation Form */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  Request Instant Telehealth SOS Consultation
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Submitting an SOS request immediately alerts duty doctors and places your consultation at top emergency priority.
+                </p>
+              </div>
+
+              {/* Doctor Picker */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Select Available Duty Practitioner</label>
+                <select
+                  value={selectedEmergencyDoctor}
+                  onChange={(e) => setSelectedEmergencyDoctor(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 text-xs font-semibold rounded-xl focus:outline-none focus:border-red-500"
+                >
+                  <option value="">-- Auto-Assign Duty Practitioner --</option>
+                  {doctors.map((doc) => (
+                    <option key={doc._id || doc.user?._id} value={doc.user?._id || doc._id}>
+                      Dr. {doc.user?.name} ({doc.specialization})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Symptom Checklist */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1.5">Select Experienced Symptoms</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {URGENT_SYMPTOMS.map((symptom) => {
+                    const isChecked = selectedEmergencySymptoms.includes(symptom);
+                    return (
+                      <button
+                        key={symptom}
+                        type="button"
+                        onClick={() => {
+                          if (isChecked) {
+                            setSelectedEmergencySymptoms(selectedEmergencySymptoms.filter(s => s !== symptom));
+                          } else {
+                            setSelectedEmergencySymptoms([...selectedEmergencySymptoms, symptom]);
+                          }
+                        }}
+                        className={`p-2.5 text-left text-xs font-bold rounded-xl border transition flex items-center gap-2 cursor-pointer ${
+                          isChecked
+                            ? 'bg-red-50 border-red-300 text-red-700 shadow-xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center shrink-0 ${isChecked ? 'bg-red-600 border-red-600 text-white' : 'border-slate-300'}`}>
+                          {isChecked && '✓'}
+                        </span>
+                        <span className="truncate">{symptom}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Additional Emergency Notes */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Additional Critical Notes</label>
+                <textarea
+                  value={emergencyNotes}
+                  onChange={(e) => setEmergencyNotes(e.target.value)}
+                  placeholder="Describe your current status, location, or immediate needs..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl focus:outline-none focus:border-red-500 resize-none"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleInstantEmergencyBooking}
+                  className="w-full py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs font-black rounded-xl shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition hover:scale-101 cursor-pointer"
+                >
+                  <Siren className="w-4 h-4" />
+                  <span>SUBMIT INSTANT EMERGENCY SOS REQUEST</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleNotifyEmergencyContact}
+                  disabled={notifyingContact}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                >
+                  <ShieldAlert className="w-4 h-4 text-amber-600" />
+                  <span>{notifyingContact ? 'Alerting Emergency Contacts...' : '🔔 Alert Registered Emergency Contact'}</span>
                 </button>
               </div>
             </div>

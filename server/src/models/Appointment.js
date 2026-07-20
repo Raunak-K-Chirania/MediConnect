@@ -65,6 +65,21 @@ const appointmentSchema = new mongoose.Schema(
         notes: {
             type: String,
         },
+        cancellationReason: {
+            type: String,
+        },
+        rejectionReason: {
+            type: String,
+        },
+        isEmergency: {
+            type: Boolean,
+            default: false,
+        },
+        priority: {
+            type: String,
+            enum: ["standard", "urgent", "emergency"],
+            default: "standard",
+        },
     },
     {
         timestamps: true,

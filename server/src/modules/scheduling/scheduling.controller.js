@@ -172,6 +172,7 @@ const createAppointment = async (req, res, next) => {
     }
 
     // Insert Appointment
+    const { isEmergency = false, priority = isEmergency ? "emergency" : "standard" } = req.body;
     const appointment = new Appointment({
       patientId,
       doctorId,
@@ -181,7 +182,9 @@ const createAppointment = async (req, res, next) => {
       appointmentType,
       reasonForVisit,
       notes,
-      status: "pending",
+      isEmergency,
+      priority,
+      status: isEmergency ? "approved" : "pending",
     });
 
     await appointment.save();
@@ -267,6 +270,7 @@ const rejectAppointment = async (req, res, next) => {
 
     appointment.status = "rejected";
     appointment.notes = reason;
+    appointment.rejectionReason = reason;
     await appointment.save();
 
     req.auditLogData = {
@@ -298,24 +302,39 @@ const cancelAppointment = async (req, res, next) => {
     }
 
     // RBAC: Patient (own), Doctor (own), Admin (all)
-    if (req.user.role === "Patient" && appointment.patientId.toString() !== req.user.id.toString()) {
-      throw new ApiError(403, "Access denied. You cannot cancel another patient's appointment.");
+    if (req.user.role === "Patient") {
+      const Patient = require("../../models/Patient");
+      const patientProfile = await Patient.findOne({ user: req.user.id });
+      const isDirectOwner = appointment.patientId && appointment.patientId.toString() === req.user.id.toString();
+      const isLegacyOwner = patientProfile && appointment.patient && appointment.patient.toString() === patientProfile._id.toString();
+
+      if (!isDirectOwner && !isLegacyOwner) {
+        throw new ApiError(403, "Access denied. You cannot cancel another patient's appointment.");
+      }
     }
-    if (req.user.role === "Doctor" && appointment.doctorId.toString() !== req.user.id.toString()) {
-      throw new ApiError(403, "Access denied. You cannot cancel another doctor's appointment.");
+    if (req.user.role === "Doctor") {
+      const Doctor = require("../../models/Doctor");
+      const doctorProfile = await Doctor.findOne({ user: req.user.id });
+      const isDirectDoctor = appointment.doctorId && appointment.doctorId.toString() === req.user.id.toString();
+      const isLegacyDoctor = doctorProfile && appointment.doctor && appointment.doctor.toString() === doctorProfile._id.toString();
+
+      if (!isDirectDoctor && !isLegacyDoctor) {
+        throw new ApiError(403, "Access denied. You cannot cancel another doctor's appointment.");
+      }
     }
 
     // Business Rules: Cannot cancel completed appointments.
-    if (appointment.status === "completed") {
+    if (appointment.status === "completed" || appointment.status === "Completed") {
       throw new ApiError(400, "Cannot cancel completed appointments");
     }
-    if (["cancelled", "rejected"].includes(appointment.status)) {
+    if (["cancelled", "rejected", "Cancelled"].includes(appointment.status)) {
       throw new ApiError(400, `Appointment is already inactive (status: '${appointment.status}')`);
     }
 
     // Transition: approved -> cancelled, pending -> cancelled
     appointment.status = "cancelled";
     appointment.notes = reason;
+    appointment.cancellationReason = reason;
     await appointment.save();
 
     req.auditLogData = {
@@ -586,35 +605,38 @@ const getMeetingToken = async (req, res, next) => {
       throw new ApiError(403, "Access denied. You cannot access this appointment's meeting token.");
     }
 
-    // Status verification: must be approved or completed (or Scheduled/Completed)
-    const validStatuses = ["approved", "completed", "Scheduled", "Completed"];
+    // Status verification: must be pending, approved, completed, Scheduled, or Completed
+    const validStatuses = ["pending", "approved", "completed", "Scheduled", "Completed"];
     if (!validStatuses.includes(appointment.status)) {
-      throw new ApiError(400, "Meeting room access is not allowed for this appointment status.");
+      throw new ApiError(400, `Meeting room access is not allowed for appointment status '${appointment.status}'.`);
     }
 
-    // Time validation: allow room access only during scheduled consultation time
-    const now = new Date();
-    const year = appointment.appointmentDate.getUTCFullYear();
-    const month = appointment.appointmentDate.getUTCMonth();
-    const date = appointment.appointmentDate.getUTCDate();
+    // Time validation: allow room access during scheduled consultation time (bypassed in non-production for dev testing)
+    const isDev = process.env.NODE_ENV !== "production";
+    if (!isDev) {
+      const now = new Date();
+      const year = appointment.appointmentDate.getUTCFullYear();
+      const month = appointment.appointmentDate.getUTCMonth();
+      const date = appointment.appointmentDate.getUTCDate();
 
-    const [startHours, startMinutes] = appointment.startTime.split(":").map(Number);
-    const [endHours, endMinutes] = appointment.endTime.split(":").map(Number);
+      const [startHours, startMinutes] = appointment.startTime.split(":").map(Number);
+      const [endHours, endMinutes] = appointment.endTime.split(":").map(Number);
 
-    const scheduledStart = new Date(year, month, date, startHours, startMinutes, 0, 0);
-    const scheduledEnd = new Date(year, month, date, endHours, endMinutes, 0, 0);
+      const scheduledStart = new Date(Date.UTC(year, month, date, startHours, startMinutes, 0, 0));
+      const scheduledEnd = new Date(Date.UTC(year, month, date, endHours, endMinutes, 0, 0));
 
-    const earlyBuffer = 10 * 60 * 1000; // 10 minutes early join allowed
-    const lateBuffer = 30 * 60 * 1000;  // 30 minutes late stay allowed
+      const earlyBuffer = 10 * 60 * 1000; // 10 minutes early join allowed
+      const lateBuffer = 30 * 60 * 1000;  // 30 minutes late stay allowed
 
-    const allowedStartTime = new Date(scheduledStart.getTime() - earlyBuffer);
-    const allowedEndTime = new Date(scheduledEnd.getTime() + lateBuffer);
+      const allowedStartTime = new Date(scheduledStart.getTime() - earlyBuffer);
+      const allowedEndTime = new Date(scheduledEnd.getTime() + lateBuffer);
 
-    if (now < allowedStartTime) {
-      throw new ApiError(400, "Access denied: The consultation room is not open yet. You can join up to 10 minutes early.");
-    }
-    if (now > allowedEndTime) {
-      throw new ApiError(400, "Access denied: The consultation room has closed.");
+      if (now < allowedStartTime) {
+        throw new ApiError(400, "Access denied: The consultation room is not open yet. You can join up to 10 minutes early.");
+      }
+      if (now > allowedEndTime) {
+        throw new ApiError(400, "Access denied: The consultation room has closed.");
+      }
     }
 
     // Generate unique cryptographically secure room token

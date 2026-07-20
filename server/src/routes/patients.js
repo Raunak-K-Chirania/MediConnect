@@ -26,7 +26,10 @@ router.get("/me", auth, authorize("Patient"), async (req, res) => {
 // @access  Private (Doctors, Admins, or Patient owner)
 router.get("/:id", auth, async (req, res) => {
   try {
-    const patient = await Patient.findById(req.params.id).populate("user", "name email role");
+    let patient = await Patient.findById(req.params.id).populate("user", "name email role");
+    if (!patient) {
+      patient = await Patient.findOne({ user: req.params.id }).populate("user", "name email role");
+    }
     if (!patient) {
       return res.status(404).json({ error: "Patient profile not found" });
     }

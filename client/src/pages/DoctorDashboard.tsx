@@ -12,7 +12,7 @@ import { clinicalNoteSchema, medicalRecordSchema } from '../schemas/validationSc
 import { 
   Calendar, FileText, Search, Clock, 
   AlertCircle, CheckCircle2, User, Stethoscope, 
-  Activity, Clipboard, Eye, X, Check, Trash2, Edit2, Plus, RefreshCw, Video, Download
+  Activity, Clipboard, Eye, X, Check, Trash2, Edit2, Plus, RefreshCw, Video, Download, Siren, Zap
 } from 'lucide-react';
 
 export const DoctorDashboard: React.FC = () => {
@@ -387,6 +387,26 @@ export const DoctorDashboard: React.FC = () => {
                 <h1 className="text-2xl font-black text-slate-800">Welcome back, Dr. {user?.name}!</h1>
                 <p className="text-slate-500 text-xs mt-1">Clinical Dashboard. Approve patient booking requests, review consult schedulers, or edit soap files.</p>
 
+                {appointments.some(a => (a.isEmergency || a.appointmentType === 'Emergency Consultation') && (a.status === 'approved' || a.status === 'pending')) && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between gap-4 animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0">
+                        <Siren className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-xs text-red-900 uppercase tracking-wider">🚨 URGENT EMERGENCY APPOINTMENT PENDING</h4>
+                        <p className="text-[11px] text-red-700">Immediate attention requested. Check emergency booking in your schedule queue.</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('schedule')}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl shadow-md shrink-0 cursor-pointer"
+                    >
+                      View Emergency Queue
+                    </button>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
                   <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Today's Appointments</span>
@@ -538,18 +558,29 @@ export const DoctorDashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredAppts.map((appt) => (
-                    <div key={appt._id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-                      <div>
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">{appt.appointmentType}</span>
-                            <h3 className="text-base font-black text-slate-800 mt-0.5">{getPatientName(appt)}</h3>
+                  {filteredAppts.map((appt) => {
+                    const isEmg = appt.isEmergency || appt.appointmentType === 'Emergency Consultation';
+                    return (
+                      <div key={appt._id} className={`bg-white border rounded-2xl p-5 shadow-sm flex flex-col justify-between ${
+                        isEmg ? 'border-red-300 ring-2 ring-red-500/20 bg-red-50/20' : 'border-slate-200'
+                      }`}>
+                        <div>
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">{appt.appointmentType}</span>
+                                {isEmg && (
+                                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded-full flex items-center gap-1 animate-pulse">
+                                    <Siren className="w-3 h-3" /> SOS EMERGENCY
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="text-base font-black text-slate-800 mt-0.5">{getPatientName(appt)}</h3>
+                            </div>
+                            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase border rounded-full ${getStatusBadgeClass(appt.status)}`}>
+                              {appt.status}
+                            </span>
                           </div>
-                          <span className={`px-2 py-0.5 text-[9px] font-bold uppercase border rounded-full ${getStatusBadgeClass(appt.status)}`}>
-                            {appt.status}
-                          </span>
-                        </div>
 
                         <div className="space-y-1.5 text-xs text-slate-500 mb-4">
                           <p><strong>Date:</strong> {formatDate(appt.appointmentDate)}</p>
@@ -613,7 +644,8 @@ export const DoctorDashboard: React.FC = () => {
                         )}
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               )}
             </div>

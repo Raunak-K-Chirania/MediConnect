@@ -8,10 +8,14 @@ import DoctorDashboard from './pages/DoctorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import VideoCallPage from './pages/VideoCallPage';
 import VerifyPrescription from './pages/VerifyPrescription';
+import LandingPage from './pages/landing/LandingPage';
 
 export const App: React.FC = () => {
   return (
     <Routes>
+      {/* Landing Page */}
+      <Route path="/" element={<LandingPage />} />
+
       {/* Public Prescription Verification Route */}
       <Route path="/verify-prescription/:id" element={<VerifyPrescription />} />
 

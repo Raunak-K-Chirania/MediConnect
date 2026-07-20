@@ -8,7 +8,7 @@ import DashboardLayout from '../layouts/DashboardLayout';
 import { availabilityConfigSchema } from '../schemas/validationSchemas';
 import { 
   Shield, Users, Calendar, Activity, Database, Clock, 
-  AlertCircle, CheckCircle2, Search, X, Plus, Trash2, RefreshCw
+  AlertCircle, CheckCircle2, Search, X, Plus, Trash2, RefreshCw, Siren
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
