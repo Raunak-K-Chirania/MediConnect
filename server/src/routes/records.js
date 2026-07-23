@@ -18,8 +18,11 @@ router.post("/", auth, authorize("Doctor"), validateBody(createMedicalRecordSche
   try {
     const { patientId, diagnosis, symptoms, treatmentPlan, medications, allergies, notes, visitDate, prescription } = req.body;
 
-    // Verify patient exists
-    const patientExists = await Patient.findById(patientId);
+    // Verify patient exists (by Patient ID or User ID)
+    let patientExists = await Patient.findById(patientId);
+    if (!patientExists) {
+      patientExists = await Patient.findOne({ user: patientId });
+    }
     if (!patientExists) {
       throw new ApiError(404, "Patient not found");
     }
@@ -32,8 +35,12 @@ router.post("/", auth, authorize("Doctor"), validateBody(createMedicalRecordSche
 
     // Enforce role-based access / assignment: Doctors can access records only for patients assigned to them (via Appointment)
     const isAssigned = await Appointment.findOne({
-      patient: patientId,
-      doctor: doctor._id,
+      $or: [
+        { patient: patientExists._id, doctor: doctor._id },
+        { patientId: patientExists.user, doctorId: req.user.id },
+        { patient: patientExists._id, doctorId: req.user.id },
+        { patientId: patientExists.user, doctor: doctor._id }
+      ]
     });
     if (!isAssigned) {
       throw new ApiError(403, "Forbidden: You cannot create a record for a patient who is not assigned to you.");

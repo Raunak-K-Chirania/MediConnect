@@ -77,7 +77,7 @@ const io = new Server(server, {
   },
   pingInterval: 10000,      // Ping client every 10 seconds to detect dead connections fast
   pingTimeout: 5000,        // Wait 5 seconds for pong response before closing
-  transports: ["websocket"] // Restrict to websocket only for optimized overhead and latency
+  transports: ["websocket", "polling"] // Allow websocket and polling fallback for maximum reliability
 });
 
 // Keep track of active users in rooms: { roomId: { socketId: { userId, role } } }

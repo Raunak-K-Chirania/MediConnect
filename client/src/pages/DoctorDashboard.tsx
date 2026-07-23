@@ -7,12 +7,14 @@ import { appointmentService, Appointment } from '../services/appointmentService'
 import { medicalRecordService, MedicalRecord } from '../services/medicalRecordService';
 import { clinicalNoteService, ClinicalNote } from '../services/clinicalNoteService';
 import { patientService, PatientProfile } from '../services/patientService';
+import { doctorProfileService, DoctorProfile } from '../services/doctorProfileService';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { clinicalNoteSchema, medicalRecordSchema } from '../schemas/validationSchemas';
 import { 
   Calendar, FileText, Search, Clock, 
   AlertCircle, CheckCircle2, User, Stethoscope, 
-  Activity, Clipboard, Eye, X, Check, Trash2, Edit2, Plus, RefreshCw, Video, Download, Siren, Zap
+  Activity, Clipboard, Eye, X, Check, Trash2, Edit2, Plus, RefreshCw, Video, Download, Siren, Zap,
+  Award, ShieldCheck, FileCheck, ExternalLink, AlertTriangle
 } from 'lucide-react';
 
 export const DoctorDashboard: React.FC = () => {
@@ -25,6 +27,22 @@ export const DoctorDashboard: React.FC = () => {
   const [patients, setPatients] = useState<PatientProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Practitioner Certificate States
+  const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
+  const [loadingCertificate, setLoadingCertificate] = useState(false);
+  const [savingCertificate, setSavingCertificate] = useState(false);
+  const [certForm, setCertForm] = useState({
+    specialization: '',
+    qualification: '',
+    experience: 0,
+    licenseNumber: '',
+    consultationFee: 0,
+    hospital: '',
+    certificateUrl: '',
+    certificateNumber: '',
+    certificateExpiryDate: '',
+  });
 
   // Success / Info notifications
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -56,6 +74,7 @@ export const DoctorDashboard: React.FC = () => {
     { label: 'Overview', value: 'summary', icon: Activity },
     { label: 'Schedule', value: 'schedule', icon: Calendar },
     { label: 'Patients Directory', value: 'patients', icon: User },
+    { label: 'Practitioner Certificate', value: 'certificate', icon: Award },
   ];
 
   const loadData = async () => {
@@ -77,9 +96,57 @@ export const DoctorDashboard: React.FC = () => {
     }
   };
 
+  const fetchDoctorProfile = async () => {
+    setLoadingCertificate(true);
+    try {
+      const res = await doctorProfileService.getProfile();
+      if (res.doctor) {
+        setDoctorProfile(res.doctor);
+        setCertForm({
+          specialization: res.doctor.specialization || '',
+          qualification: res.doctor.qualification || '',
+          experience: res.doctor.experience || 0,
+          licenseNumber: res.doctor.licenseNumber || '',
+          consultationFee: res.doctor.consultationFee || 0,
+          hospital: res.doctor.hospital || '',
+          certificateUrl: res.doctor.certificateUrl || '',
+          certificateNumber: res.doctor.certificateNumber || '',
+          certificateExpiryDate: res.doctor.certificateExpiryDate ? new Date(res.doctor.certificateExpiryDate).toISOString().split('T')[0] : '',
+        });
+      }
+    } catch (err: any) {
+      console.error('Fetch doctor profile error:', err);
+    } finally {
+      setLoadingCertificate(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
+    fetchDoctorProfile();
   }, [user]);
+
+  useEffect(() => {
+    if (activeTab === 'certificate') {
+      fetchDoctorProfile();
+    }
+  }, [activeTab]);
+
+  const handleSaveCertificate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingCertificate(true);
+    try {
+      const res = await doctorProfileService.updateProfile(certForm);
+      if (res.doctor) {
+        setDoctorProfile(res.doctor);
+      }
+      showToast(res.message || 'Medical practitioner certificate updated. Pending admin verification.');
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to update practitioner certificate details', 'error');
+    } finally {
+      setSavingCertificate(false);
+    }
+  };
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -862,6 +929,226 @@ export const DoctorDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: PRACTITIONER CERTIFICATE & PROFILE */}
+          {activeTab === 'certificate' && (
+            <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                      <Award className="w-6 h-6 text-teal-600" />
+                      Medical Practitioner Certificate & Credentials
+                    </h1>
+                    <p className="text-slate-500 text-xs mt-1">Manage your official medical council registration, practitioner certificate link, and qualification profile.</p>
+                  </div>
+
+                  {/* Verification Status Badge */}
+                  {doctorProfile && (
+                    <div className="shrink-0">
+                      {doctorProfile.verificationStatus === 'Approved' ? (
+                        <div className="px-3.5 py-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-2xl flex items-center gap-2 text-xs font-bold shadow-sm">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Approved & Verified</span>
+                        </div>
+                      ) : doctorProfile.verificationStatus === 'Rejected' ? (
+                        <div className="px-3.5 py-1.5 bg-rose-50 border border-rose-300 text-rose-800 rounded-2xl flex items-center gap-2 text-xs font-bold shadow-sm">
+                          <AlertTriangle className="w-4 h-4 text-rose-600" />
+                          <span>Verification Rejected</span>
+                        </div>
+                      ) : (
+                        <div className="px-3.5 py-1.5 bg-amber-50 border border-amber-300 text-amber-800 rounded-2xl flex items-center gap-2 text-xs font-bold shadow-sm">
+                          <Clock className="w-4 h-4 text-amber-600 animate-spin" />
+                          <span>Pending Admin Review</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Verification Notice Bar */}
+                {doctorProfile?.verificationStatus === 'Rejected' && doctorProfile?.verificationNotes && (
+                  <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900">
+                    <strong className="block font-bold mb-0.5 text-rose-950">Reason for Rejection (Admin Feedback):</strong>
+                    <p className="italic">{doctorProfile.verificationNotes}</p>
+                    <p className="mt-1 text-[11px] text-rose-700 font-semibold">Please update your certificate document URL or registration details below to re-submit for approval.</p>
+                  </div>
+                )}
+
+                {doctorProfile?.verificationStatus === 'Approved' && (
+                  <div className="mt-4 p-3.5 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl text-xs text-emerald-900 flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>Your medical practitioner credentials are active and verified. Any changes to your certificate will require re-verification.</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Form Card */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                {loadingCertificate ? (
+                  <div className="p-8 text-center">
+                    <div className="w-6 h-6 border-3 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-slate-500 text-xs">Loading certificate details...</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSaveCertificate} className="space-y-5">
+                    <h3 className="font-extrabold text-slate-800 text-sm border-b pb-2 flex items-center gap-2">
+                      <FileCheck className="w-4.5 h-4.5 text-teal-600" /> Official Practitioner Certificate Information
+                    </h3>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Practitioner Certificate / Reg Number *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={certForm.certificateNumber}
+                          onChange={(e) => setCertForm({ ...certForm, certificateNumber: e.target.value })}
+                          placeholder="e.g. MED-REG-2026-9941"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-mono rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Certificate Expiry Date
+                        </label>
+                        <input
+                          type="date"
+                          value={certForm.certificateExpiryDate}
+                          onChange={(e) => setCertForm({ ...certForm, certificateExpiryDate: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-mono rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Practitioner Certificate Document URL / Link *
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          required
+                          value={certForm.certificateUrl}
+                          onChange={(e) => setCertForm({ ...certForm, certificateUrl: e.target.value })}
+                          placeholder="https://drive.google.com/your-certificate-file.pdf"
+                          className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                        {certForm.certificateUrl && (
+                          <a
+                            href={certForm.certificateUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-250 rounded-xl text-slate-700 text-xs font-bold flex items-center gap-1 shrink-0"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> View
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">Provide a publicly accessible URL or cloud storage link to your scanned medical license / practitioner certificate.</p>
+                    </div>
+
+                    <h3 className="font-extrabold text-slate-800 text-sm border-b pb-2 pt-3 flex items-center gap-2">
+                      <Stethoscope className="w-4.5 h-4.5 text-teal-600" /> Professional Practice Profile
+                    </h3>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Medical Specialization *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={certForm.specialization}
+                          onChange={(e) => setCertForm({ ...certForm, specialization: e.target.value })}
+                          placeholder="e.g. Cardiology, Pediatrics"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Medical License Number *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={certForm.licenseNumber}
+                          onChange={(e) => setCertForm({ ...certForm, licenseNumber: e.target.value })}
+                          placeholder="e.g. LIC-998822"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-mono rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Qualification / Degrees
+                        </label>
+                        <input
+                          type="text"
+                          value={certForm.qualification}
+                          onChange={(e) => setCertForm({ ...certForm, qualification: e.target.value })}
+                          placeholder="e.g. MBBS, MD (Cardiology)"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Years of Experience
+                        </label>
+                        <input
+                          type="number"
+                          value={certForm.experience}
+                          onChange={(e) => setCertForm({ ...certForm, experience: Number(e.target.value) })}
+                          placeholder="8"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-mono rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Consultation Fee ($)
+                        </label>
+                        <input
+                          type="number"
+                          value={certForm.consultationFee}
+                          onChange={(e) => setCertForm({ ...certForm, consultationFee: Number(e.target.value) })}
+                          placeholder="50"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-mono rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Hospital / Affiliation
+                        </label>
+                        <input
+                          type="text"
+                          value={certForm.hospital}
+                          onChange={(e) => setCertForm({ ...certForm, hospital: e.target.value })}
+                          placeholder="City General Hospital"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={savingCertificate}
+                      className="w-full py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl transition-all shadow-md active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                    >
+                      {savingCertificate ? 'Updating Certificate & Profile...' : 'Save & Submit Practitioner Certificate'}
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
           )}

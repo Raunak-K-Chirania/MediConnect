@@ -7,13 +7,14 @@ import { appointmentService, Appointment } from '../services/appointmentService'
 import { medicalRecordService, MedicalRecord } from '../services/medicalRecordService';
 import { clinicalNoteService, ClinicalNote } from '../services/clinicalNoteService';
 import { availabilityService } from '../services/availabilityService';
+import { patientService, PatientProfile } from '../services/patientService';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { appointmentBookingSchema, rescheduleAppointmentSchema } from '../schemas/validationSchemas';
 import { 
   Calendar, FileText, PlusCircle, Search, Clock, 
   AlertCircle, CheckCircle2, Stethoscope, Video, 
   Activity, Clipboard, Eye, X, RefreshCw, Download,
-  Siren, PhoneCall, ShieldAlert, Zap
+  Siren, PhoneCall, ShieldAlert, Zap, User as UserIcon, Heart, UserCheck
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
@@ -59,6 +60,7 @@ export const PatientDashboard: React.FC = () => {
   const [selectedEmergencySymptoms, setSelectedEmergencySymptoms] = useState<string[]>([]);
   const [emergencyNotes, setEmergencyNotes] = useState('');
   const [notifyingContact, setNotifyingContact] = useState(false);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
 
   const URGENT_SYMPTOMS = [
     'Chest Pain / Discomfort',
@@ -69,11 +71,25 @@ export const PatientDashboard: React.FC = () => {
     'Severe Allergic Reaction (Anaphylaxis)',
   ];
 
+  // Patient Medical Profile Form State
+  const [profileForm, setProfileForm] = useState({
+    bloodGroup: 'A+',
+    gender: 'Male',
+    dateOfBirth: '',
+    phone: '',
+    emergencyContact: '',
+    address: '',
+    allergies: '',
+    medicalHistory: '',
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+
   const sidebarItems = [
     { label: 'Summary', value: 'summary', icon: Activity },
     { label: 'My Appointments', value: 'appointments', icon: Calendar },
     { label: 'Book Appointment', value: 'book', icon: PlusCircle },
-    { label: 'Medical History', value: 'records', icon: FileText },
+    { label: 'EHR & Medical History', value: 'records', icon: FileText },
+    { label: 'My Medical Profile', value: 'profile', icon: UserIcon },
     { label: 'Emergency SOS', value: 'emergency', icon: Siren, isEmergency: true },
   ];
 
@@ -94,12 +110,56 @@ export const PatientDashboard: React.FC = () => {
       const docsRes = await axiosInstanceGetDoctors();
       setDoctors(docsRes.doctors || []);
 
+      try {
+        const profRes = await patientService.getMe();
+        if (profRes && profRes.patient) {
+          const p = profRes.patient;
+          setProfileForm({
+            bloodGroup: p.bloodGroup || 'A+',
+            gender: p.gender || 'Male',
+            dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().split('T')[0] : '',
+            phone: p.phone || '',
+            emergencyContact: p.emergencyContact || '',
+            address: p.address || '',
+            allergies: Array.isArray(p.allergies) ? p.allergies.join(', ') : (p.allergies || ''),
+            medicalHistory: Array.isArray(p.medicalHistory) ? p.medicalHistory.join(', ') : (p.medicalHistory || ''),
+          });
+        }
+      } catch (profErr) {
+        console.log('No existing patient profile found yet');
+      }
+
       setError(null);
     } catch (err: any) {
       console.error('Error fetching patient data:', err);
       setError('Could not fetch medical or scheduling records. Please check backend connection.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const payload: Partial<PatientProfile> = {
+        bloodGroup: profileForm.bloodGroup as any,
+        gender: profileForm.gender as any,
+        dateOfBirth: profileForm.dateOfBirth || undefined,
+        phone: profileForm.phone || undefined,
+        emergencyContact: profileForm.emergencyContact || undefined,
+        address: profileForm.address || undefined,
+        allergies: profileForm.allergies ? profileForm.allergies.split(',').map(s => s.trim()).filter(Boolean) : [],
+        medicalHistory: profileForm.medicalHistory ? profileForm.medicalHistory.split(',').map(s => s.trim()).filter(Boolean) : [],
+      };
+
+      await patientService.updateMe(payload);
+      showToast('Medical profile & blood group updated successfully!');
+      loadData();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to update profile details', 'error');
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -361,7 +421,7 @@ export const PatientDashboard: React.FC = () => {
     const term = recordSearch.toLowerCase();
     const docName = rec.doctorId?.user?.name?.toLowerCase() || '';
     const diag = rec.diagnosis?.toLowerCase() || '';
-    const sym = rec.symptoms?.toLowerCase() || '';
+    const sym = Array.isArray(rec.symptoms) ? rec.symptoms.join(' ').toLowerCase() : (typeof rec.symptoms === 'string' ? rec.symptoms.toLowerCase() : '');
     return diag.includes(term) || sym.includes(term) || docName.includes(term);
   });
 
@@ -1079,7 +1139,9 @@ export const PatientDashboard: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                           <div>
                             <span className="text-[10px] text-slate-400 font-bold block uppercase">Symptoms</span>
-                            <span className="text-slate-600 line-clamp-2 mt-0.5">{rec.symptoms}</span>
+                            <span className="text-slate-600 line-clamp-2 mt-0.5">
+                              {Array.isArray(rec.symptoms) ? rec.symptoms.join(', ') : rec.symptoms}
+                            </span>
                           </div>
                           <div>
                             <span className="text-[10px] text-slate-400 font-bold block uppercase">Treatment Plan</span>
@@ -1088,8 +1150,23 @@ export const PatientDashboard: React.FC = () => {
                         </div>
 
                         {rec.prescription && rec.prescription.medicines && rec.prescription.medicines.length > 0 && (
-                          <div className="p-3 bg-indigo-50 border border-indigo-100 text-slate-700 rounded-xl mt-1 text-xs">
-                            <span className="font-bold text-indigo-700 block mb-1">Prescription Included:</span>
+                          <div className="p-3 bg-indigo-50/70 border border-indigo-100 text-slate-700 rounded-xl mt-1 text-xs">
+                            <div className="flex justify-between items-center mb-1.5">
+                              <span className="font-bold text-indigo-800 flex items-center gap-1">
+                                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                                Official Doctor Prescription ({rec.prescription.medicines.length} Medicines)
+                              </span>
+                              {rec.prescription._id && (
+                                <button
+                                  onClick={() => rec.prescription?._id && handleDownloadPrescription(rec.prescription._id)}
+                                  disabled={downloadingPdfId === rec.prescription._id}
+                                  className="flex items-center gap-1 text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-white border border-indigo-200 hover:bg-indigo-50 px-2 py-0.5 rounded-lg shadow-2xs transition disabled:opacity-50 cursor-pointer"
+                                >
+                                  <Download className="w-3 h-3 text-indigo-600" />
+                                  {downloadingPdfId === rec.prescription._id ? 'Downloading...' : 'Download Official PDF'}
+                                </button>
+                              )}
+                            </div>
                             <ul className="list-disc pl-4 space-y-1 text-slate-600">
                               {rec.prescription.medicines.map((med, idx) => (
                                 <li key={idx}>
@@ -1139,6 +1216,162 @@ export const PatientDashboard: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* TAB 4: MY MEDICAL PROFILE */}
+          {activeTab === 'profile' && (
+            <div className="space-y-6 animate-fadeIn max-w-4xl mx-auto">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <UserIcon className="w-5 h-5 text-teal-600" />
+                    Personal & Medical Profile
+                  </h1>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Update your blood group, emergency contacts, and vital medical history for attending doctors.
+                  </p>
+                </div>
+                <span className="px-3 py-1 bg-teal-50 border border-teal-200 text-teal-700 text-xs font-bold rounded-full flex items-center gap-1.5">
+                  <UserCheck className="w-3.5 h-3.5" /> Profile Encrypted
+                </span>
+              </div>
+
+              <form onSubmit={handleSaveProfile} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {/* Blood Group */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Blood Group *
+                    </label>
+                    <select
+                      value={profileForm.bloodGroup}
+                      onChange={(e) => setProfileForm({ ...profileForm, bloodGroup: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                    >
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+
+                  {/* Gender */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Gender
+                    </label>
+                    <select
+                      value={profileForm.gender}
+                      onChange={(e) => setProfileForm({ ...profileForm, gender: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Date of Birth */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={profileForm.dateOfBirth}
+                      onChange={(e) => setProfileForm({ ...profileForm, dateOfBirth: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* Phone */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="+1 (555) 000-0000"
+                      value={profileForm.phone}
+                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Emergency Contact */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Emergency Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="+1 (555) 999-9999"
+                      value={profileForm.emergencyContact}
+                      onChange={(e) => setProfileForm({ ...profileForm, emergencyContact: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Residential Address */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Residential Address
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="123 Healthcare Ave, Suite 400..."
+                    value={profileForm.address}
+                    onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                  />
+                </div>
+
+                {/* Allergies */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Known Drug & Environmental Allergies (Comma Separated)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Penicillin, Peanuts, Latex, Dust..."
+                    value={profileForm.allergies}
+                    onChange={(e) => setProfileForm({ ...profileForm, allergies: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                  />
+                </div>
+
+                {/* Medical History */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Past Medical Conditions / History (Comma Separated)
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Asthma, Type 2 Diabetes, Hypertension..."
+                    value={profileForm.medicalHistory}
+                    onChange={(e) => setProfileForm({ ...profileForm, medicalHistory: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={savingProfile}
+                    className="px-6 py-2.5 bg-teal-600 hover:bg-teal-500 active:scale-98 text-white font-bold text-xs rounded-xl shadow-lg shadow-teal-600/20 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {savingProfile ? 'Saving Changes...' : 'Save Medical Profile'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </>
       )}
 
@@ -1162,7 +1395,9 @@ export const PatientDashboard: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">Symptoms</span>
-                <p className="text-slate-700 mt-1 text-xs bg-slate-50 border border-slate-100 p-3 rounded-xl">{selectedRecord.symptoms}</p>
+                <p className="text-slate-700 mt-1 text-xs bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                  {Array.isArray(selectedRecord.symptoms) ? selectedRecord.symptoms.join(', ') : selectedRecord.symptoms}
+                </p>
               </div>
 
               <div>

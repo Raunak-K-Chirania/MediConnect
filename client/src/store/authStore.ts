@@ -12,6 +12,14 @@ interface AuthState {
   setUser: (user: User) => void;
 }
 
+const normalizeRole = (role?: string): UserRole => {
+  if (!role) return 'Patient';
+  const lower = role.toLowerCase();
+  if (lower === 'doctor') return 'Doctor';
+  if (lower === 'admin') return 'Admin';
+  return 'Patient';
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -19,13 +27,15 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       role: null,
       isAuthenticated: false,
-      login: (user, token) =>
+      login: (user, token) => {
+        const normalizedRole = normalizeRole(user.role);
         set({
-          user,
+          user: { ...user, role: normalizedRole },
           token,
-          role: user.role,
+          role: normalizedRole,
           isAuthenticated: true,
-        }),
+        });
+      },
       logout: () =>
         set({
           user: null,
@@ -33,12 +43,14 @@ export const useAuthStore = create<AuthState>()(
           role: null,
           isAuthenticated: false,
         }),
-      setUser: (user) =>
+      setUser: (user) => {
+        const normalizedRole = normalizeRole(user.role);
         set({
-          user,
-          role: user.role,
+          user: { ...user, role: normalizedRole },
+          role: normalizedRole,
           isAuthenticated: true,
-        }),
+        });
+      },
     }),
     {
       name: 'mediconnect-auth',
