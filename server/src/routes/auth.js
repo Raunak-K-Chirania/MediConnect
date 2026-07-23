@@ -189,4 +189,79 @@ router.get("/doctors", auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/auth/doctor-profile
+// @desc    Get current doctor's profile & certificate details
+// @access  Private (Doctor only)
+router.get("/doctor-profile", auth, async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({ user: req.user._id }).populate("user", "name email role");
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor profile not found" });
+    }
+    res.json({ success: true, doctor });
+  } catch (error) {
+    console.error("Fetch doctor profile error:", error);
+    res.status(500).json({ error: "Server error fetching doctor profile" });
+  }
+});
+
+// @route   PUT /api/auth/doctor-profile
+// @desc    Update doctor profile & medical practitioner certificate details
+// @access  Private (Doctor only)
+router.put("/doctor-profile", auth, async (req, res) => {
+  try {
+    let doctor = await Doctor.findOne({ user: req.user._id });
+    if (!doctor) {
+      // If doctor profile doesn't exist yet, create one
+      doctor = new Doctor({
+        user: req.user._id,
+        specialization: req.body.specialization || "General Practice",
+        licenseNumber: req.body.licenseNumber || `LIC-${Date.now().toString().slice(-6)}`,
+      });
+    }
+
+    const {
+      specialization,
+      qualification,
+      experience,
+      licenseNumber,
+      consultationFee,
+      hospital,
+      certificateUrl,
+      certificateNumber,
+      certificateExpiryDate,
+    } = req.body;
+
+    if (specialization) doctor.specialization = specialization;
+    if (qualification !== undefined) doctor.qualification = qualification;
+    if (experience !== undefined) doctor.experience = Number(experience);
+    if (licenseNumber) doctor.licenseNumber = licenseNumber;
+    if (consultationFee !== undefined) doctor.consultationFee = Number(consultationFee);
+    if (hospital !== undefined) doctor.hospital = hospital;
+
+    // Practitioner Certificate updates
+    if (certificateUrl !== undefined || certificateNumber !== undefined || certificateExpiryDate !== undefined) {
+      if (certificateUrl !== undefined) doctor.certificateUrl = certificateUrl;
+      if (certificateNumber !== undefined) doctor.certificateNumber = certificateNumber;
+      if (certificateExpiryDate !== undefined) doctor.certificateExpiryDate = certificateExpiryDate ? new Date(certificateExpiryDate) : null;
+      
+      // Reset verification status to Pending whenever practitioner certificate details are updated
+      doctor.verificationStatus = "Pending";
+    }
+
+    await doctor.save();
+    const updatedDoctor = await Doctor.findById(doctor._id).populate("user", "name email role");
+
+    res.json({
+      success: true,
+      message: "Medical practitioner certificate & profile updated. Pending admin verification.",
+      doctor: updatedDoctor,
+    });
+  } catch (error) {
+    console.error("Update doctor profile error:", error);
+    res.status(500).json({ error: error.message || "Server error updating doctor profile" });
+  }
+});
+
 module.exports = router;
+

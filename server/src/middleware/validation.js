@@ -14,13 +14,34 @@ const createMedicalRecordSchema = z.object({
     .string()
     .min(1, "Diagnosis is required")
     .max(500, "Diagnosis must not exceed 500 characters"),
-  symptoms: z.array(z.string().min(1, "Symptom cannot be empty")).optional().default([]),
+  symptoms: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return [];
+      if (typeof val === 'string') return val.split(',').map((s) => s.trim()).filter(Boolean);
+      return val;
+    }),
   treatmentPlan: z
     .string()
     .min(1, "Treatment plan is required")
     .max(1000, "Treatment plan must not exceed 1000 characters"),
-  medications: z.array(z.string().min(1, "Medication name cannot be empty")).optional().default([]),
-  allergies: z.array(z.string().min(1, "Allergy cannot be empty")).optional().default([]),
+  medications: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return [];
+      if (typeof val === 'string') return val.split(',').map((s) => s.trim()).filter(Boolean);
+      return val;
+    }),
+  allergies: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return [];
+      if (typeof val === 'string') return val.split(',').map((s) => s.trim()).filter(Boolean);
+      return val;
+    }),
   notes: z.string().max(2000, "Notes must not exceed 2000 characters").optional().default(""),
   visitDate: z
     .string()

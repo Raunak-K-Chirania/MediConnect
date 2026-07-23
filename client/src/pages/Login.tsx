@@ -46,7 +46,11 @@ export const Login: React.FC = () => {
         if (from) {
           navigate(from, { replace: true });
         } else {
-          const role = data.user.role;
+          const role = data.user.role ? (
+            data.user.role.toLowerCase() === 'doctor' ? 'Doctor' :
+            data.user.role.toLowerCase() === 'admin' ? 'Admin' : 'Patient'
+          ) : 'Patient';
+
           if (role === 'Patient') {
             navigate('/patient/dashboard');
           } else if (role === 'Doctor') {

@@ -9,10 +9,7 @@ const connectDB = require("./config/db");
 const app = express();
 const auditLogger = require("./middleware/audit");
 
-// 1. HTTP Security Headers
-app.use(helmet());
-
-// 2. CORS Policy Hardening
+// 1. CORS Policy Hardening & Preflight Handling (Must be registered BEFORE Helmet and all routes)
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173"
@@ -21,11 +18,25 @@ const allowedOrigins = [
 const isOriginAllowed = (origin) => {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
-  // Allow localhost/127.0.0.1 on any port for local development & integration test scripts
   if (/^http:\/\/localhost:\d+$/.test(origin)) return true;
   if (/^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) return true;
   return false;
 };
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (isOriginAllowed(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -42,6 +53,9 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// 2. HTTP Security Headers
+app.use(helmet());
 
 // 3. API Rate Limiting
 const apiLimiter = rateLimit({

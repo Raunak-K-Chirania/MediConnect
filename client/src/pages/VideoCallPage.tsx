@@ -238,7 +238,7 @@ export const VideoCallPage: React.FC = () => {
 
       // Initialize Signaling Socket
       const socket = io(SIGNALING_URL, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,

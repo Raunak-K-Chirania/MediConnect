@@ -40,6 +40,28 @@ const doctorSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+
+        certificateUrl: {
+            type: String,
+        },
+
+        certificateNumber: {
+            type: String,
+        },
+
+        certificateExpiryDate: {
+            type: Date,
+        },
+
+        verificationStatus: {
+            type: String,
+            enum: ["Pending", "Approved", "Rejected"],
+            default: "Pending",
+        },
+
+        verificationNotes: {
+            type: String,
+        },
     },
     {
         timestamps: true,
